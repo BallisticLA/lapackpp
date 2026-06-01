@@ -100,6 +100,16 @@ message( DEBUG "lapack_libs_list ${lapack_libs_list}" )
 unset( LAPACK_FOUND CACHE )
 unset( lapackpp_defs_ CACHE )
 
+# Extra define to forward to the link/run probe when the user has requested a
+# LAPACK symbol suffix (e.g. '64_' for OpenBLAS built with SYMBOLSUFFIX=64_).
+# BLAS++ bakes its own BLAS_FORTRAN_SUFFIX into the installed blas/defines.h,
+# which lapackpp's mangling.h honors; this only adds an independent
+# LAPACK_FORTRAN_SUFFIX when LAPACK symbols carry a different suffix.
+set( lapack_symbol_suffix_def "" )
+if (lapack_symbol_suffix)
+    set( lapack_symbol_suffix_def "-DLAPACK_FORTRAN_SUFFIX=${lapack_symbol_suffix}" )
+endif()
+
 foreach (lapack_libs IN LISTS lapack_libs_list)
     if ("${lapack_libs}" MATCHES "^ *$")
         set( label "   In BLAS library" )
@@ -119,7 +129,7 @@ foreach (lapack_libs IN LISTS lapack_libs_list)
             # Not "quoted"; screws up OpenMP.
             ${lapack_libs} ${blaspp_libraries}
         COMPILE_DEFINITIONS
-            ${blaspp_defines}
+            ${blaspp_defines} ${lapack_symbol_suffix_def}
         COMPILE_OUTPUT_VARIABLE
             compile_output
         RUN_OUTPUT_VARIABLE
@@ -138,6 +148,9 @@ foreach (lapack_libs IN LISTS lapack_libs_list)
         string( STRIP "${lapack_libs}" lapack_libs )
         set( LAPACK_LIBRARIES "${lapack_libs}" CACHE STRING "" FORCE )
         list( APPEND lapackpp_defs_ "-DLAPACK_HAVE_LAPACK" )
+        if (lapack_symbol_suffix_def)
+            list( APPEND lapackpp_defs_ "${lapack_symbol_suffix_def}" )
+        endif()
         break()
     else()
         message( "${label} ${red} no (didn't run: int mismatch, etc.)${plain}" )
