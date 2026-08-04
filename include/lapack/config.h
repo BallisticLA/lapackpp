@@ -10,6 +10,7 @@
 #include "lapack/defines.h"
 
 #include <stdlib.h>
+#include <stdint.h>
 
 #if defined(BLAS_ILP64) && ! defined(LAPACK_ILP64)
     #define LAPACK_ILP64
