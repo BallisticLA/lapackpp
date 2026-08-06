@@ -43,7 +43,7 @@ int64_t opmtr(
 
     LAPACK_sopmtr(
         &side_, &uplo_, &trans_, &m_, &n_,
-        AP,
+        (float*) AP,
         tau,
         C, &ldc_,
         &work[0], &info_
@@ -81,7 +81,7 @@ int64_t opmtr(
 
     LAPACK_dopmtr(
         &side_, &uplo_, &trans_, &m_, &n_,
-        AP,
+        (double*) AP,
         tau,
         C, &ldc_,
         &work[0], &info_

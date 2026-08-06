@@ -44,8 +44,8 @@ int64_t bdsvdx(
 
     LAPACK_sbdsvdx(
         &uplo_, &jobz_, &range_, &n_,
-        D,
-        E, &vl, &vu, &il_, &iu_, &nfound_,
+        (float*) D,
+        (float*) E, &vl, &vu, &il_, &iu_, &nfound_,
         S,
         Z, &ldz_,
         &work[0],
@@ -212,8 +212,8 @@ int64_t bdsvdx(
 
     LAPACK_dbdsvdx(
         &uplo_, &jobz_, &range_, &n_,
-        D,
-        E, &vl, &vu, &il_, &iu_, &nfound_,
+        (double*) D,
+        (double*) E, &vl, &vu, &il_, &iu_, &nfound_,
         S,
         Z, &ldz_,
         &work[0],
