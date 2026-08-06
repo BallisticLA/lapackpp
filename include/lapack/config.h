@@ -15,8 +15,21 @@
     #define LAPACK_ILP64
 #endif
 
+#ifdef ACCELERATE_NEW_LAPACK
+    // Apple's headers use std::complex in C++ and, for ILP64, `long`
+    // (a distinct type from int64_t == long long on LP64 Darwin).
+    #if defined(__cplusplus) && ! defined(LAPACK_COMPLEX_CPP)
+        #define LAPACK_COMPLEX_CPP
+    #endif
+    #if defined(LAPACK_ILP64) && ! defined(ACCELERATE_LAPACK_ILP64)
+        #define ACCELERATE_LAPACK_ILP64
+    #endif
+#endif
+
 #ifndef lapack_int
-    #ifdef LAPACK_ILP64
+    #if defined(LAPACK_ILP64) && defined(ACCELERATE_NEW_LAPACK)
+        typedef long lapack_int;   // matches Apple's __LAPACK_int
+    #elif defined(LAPACK_ILP64)
         typedef int64_t lapack_int;
     #else
         typedef int lapack_int;
@@ -33,7 +46,8 @@
 // for sdot, slange, clange, etc.
 // LAPACKE's lapack.h is missing #define to protect against multiple
 // definitions, so use lapackpp prefix.
-#if defined(BLAS_HAVE_ACCELERATE) || defined(BLAS_HAVE_F2C)
+#if (defined(BLAS_HAVE_ACCELERATE) && ! defined(ACCELERATE_NEW_LAPACK)) \
+    || defined(BLAS_HAVE_F2C)
     typedef double lapackpp_float_return;
 #else
     typedef float lapackpp_float_return;

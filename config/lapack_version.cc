@@ -9,10 +9,19 @@
 
 #define LAPACK_ilaver FORTRAN_NAME( ilaver, ILAVER )
 
-#ifdef __cplusplus
-extern "C"
+#ifdef ACCELERATE_NEW_LAPACK
+    // A self-declared undecorated prototype would silently bind the legacy
+    // LAPACK 3.2.1 symbol; Apple's header carries the $NEWLAPACK asm-label
+    // decoration on ilaver_.
+    #pragma message "include Accelerate.h"
+    #include <stdlib.h>  // workaround
+    #include <Accelerate/Accelerate.h>
+#else
+    #ifdef __cplusplus
+    extern "C"
+    #endif
+    void LAPACK_ilaver( lapack_int* major, lapack_int* minor, lapack_int* patch );
 #endif
-void LAPACK_ilaver( lapack_int* major, lapack_int* minor, lapack_int* patch );
 
 int main( int argc, char** argv )
 {

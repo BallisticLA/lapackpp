@@ -49,7 +49,7 @@ int64_t gges(
     lapack_int ineg_one = -1;
     LAPACK_sgges(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &n_,
+        (LAPACK_S_SELECT3) select, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],
@@ -71,7 +71,7 @@ int64_t gges(
 
     LAPACK_sgges(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &n_,
+        (LAPACK_S_SELECT3) select, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],
@@ -126,7 +126,7 @@ int64_t gges(
     lapack_int ineg_one = -1;
     LAPACK_dgges(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &n_,
+        (LAPACK_D_SELECT3) select, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],
@@ -148,7 +148,7 @@ int64_t gges(
 
     LAPACK_dgges(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &n_,
+        (LAPACK_D_SELECT3) select, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],
