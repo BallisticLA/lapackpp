@@ -5,6 +5,8 @@
 
 #include "lapack/fortran.h"
 
+#include <complex>
+
 namespace lapack {
 
 // -----------------------------------------------------------------------------
