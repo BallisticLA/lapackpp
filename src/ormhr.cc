@@ -42,7 +42,7 @@ int64_t ormhr(
     lapack_int ineg_one = -1;
     LAPACK_sormhr(
         &side_, &trans_, &m_, &n_, &ilo_, &ihi_,
-        A, &lda_,
+        (float*) A, &lda_,
         tau,
         C, &ldc_,
         qry_work, &ineg_one, &info_
@@ -57,7 +57,7 @@ int64_t ormhr(
 
     LAPACK_sormhr(
         &side_, &trans_, &m_, &n_, &ilo_, &ihi_,
-        A, &lda_,
+        (float*) A, &lda_,
         tau,
         C, &ldc_,
         &work[0], &lwork_, &info_
@@ -94,7 +94,7 @@ int64_t ormhr(
     lapack_int ineg_one = -1;
     LAPACK_dormhr(
         &side_, &trans_, &m_, &n_, &ilo_, &ihi_,
-        A, &lda_,
+        (double*) A, &lda_,
         tau,
         C, &ldc_,
         qry_work, &ineg_one, &info_
@@ -109,7 +109,7 @@ int64_t ormhr(
 
     LAPACK_dormhr(
         &side_, &trans_, &m_, &n_, &ilo_, &ihi_,
-        A, &lda_,
+        (double*) A, &lda_,
         tau,
         C, &ldc_,
         &work[0], &lwork_, &info_

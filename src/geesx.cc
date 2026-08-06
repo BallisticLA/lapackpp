@@ -46,7 +46,7 @@ int64_t geesx(
     lapack_int ineg_one = -1;
     LAPACK_sgeesx(
         &jobvs_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_S_SELECT2) select, &sense_, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],
@@ -68,7 +68,7 @@ int64_t geesx(
 
     LAPACK_sgeesx(
         &jobvs_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_S_SELECT2) select, &sense_, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],
@@ -118,7 +118,7 @@ int64_t geesx(
     lapack_int ineg_one = -1;
     LAPACK_dgeesx(
         &jobvs_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_D_SELECT2) select, &sense_, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],
@@ -140,7 +140,7 @@ int64_t geesx(
 
     LAPACK_dgeesx(
         &jobvs_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_D_SELECT2) select, &sense_, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],
