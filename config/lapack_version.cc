@@ -13,8 +13,7 @@
     // A self-declared undecorated prototype would silently bind the legacy
     // LAPACK 3.2.1 symbol; Apple's header carries the $NEWLAPACK asm-label
     // decoration on ilaver_.
-    #pragma message "include Accelerate.h"
-    #include <stdlib.h>  // workaround
+    #include <stdlib.h>  // workaround (see fortran.h)
     #include <Accelerate/Accelerate.h>
 #else
     #ifdef __cplusplus

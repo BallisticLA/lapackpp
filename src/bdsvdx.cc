@@ -22,8 +22,8 @@ using blas::real;
 /// @ingroup bdsvd
 int64_t bdsvdx(
     lapack::Uplo uplo, lapack::Job jobz, lapack::Range range, int64_t n,
-    float const* D,
-    float const* E, float vl, float vu, int64_t il, int64_t iu,
+    float* D,
+    float* E, float vl, float vu, int64_t il, int64_t iu,
     int64_t* nfound,
     float* S,
     float* Z, int64_t ldz )
@@ -44,8 +44,8 @@ int64_t bdsvdx(
 
     LAPACK_sbdsvdx(
         &uplo_, &jobz_, &range_, &n_,
-        (float*) D,
-        (float*) E, &vl, &vu, &il_, &iu_, &nfound_,
+        D,
+        E, &vl, &vu, &il_, &iu_, &nfound_,
         S,
         Z, &ldz_,
         &work[0],
@@ -116,14 +116,18 @@ int64_t bdsvdx(
 /// @param[in] n
 ///     The order of the bidiagonal matrix. n >= 0.
 ///
-/// @param[in] D
+/// @param[in,out] D
 ///     The vector D of length n.
 ///     The n diagonal elements of the bidiagonal matrix B.
+///     On exit, elements smaller in magnitude than an internal
+///     threshold may be set to zero.
 ///
-/// @param[in] E
+/// @param[in,out] E
 ///     The vector E of length max(1,n-1).
 ///     The (n-1) superdiagonal elements of the bidiagonal matrix
 ///     B in elements 1 to n-1.
+///     On exit, elements smaller in magnitude than an internal
+///     threshold may be set to zero.
 ///
 /// @param[in] vl
 ///     If range=Value, the lower bound of the interval to
@@ -190,8 +194,8 @@ int64_t bdsvdx(
 /// @ingroup bdsvd
 int64_t bdsvdx(
     lapack::Uplo uplo, lapack::Job jobz, lapack::Range range, int64_t n,
-    double const* D,
-    double const* E, double vl, double vu, int64_t il, int64_t iu,
+    double* D,
+    double* E, double vl, double vu, int64_t il, int64_t iu,
     int64_t* nfound,
     double* S,
     double* Z, int64_t ldz )
@@ -212,8 +216,8 @@ int64_t bdsvdx(
 
     LAPACK_dbdsvdx(
         &uplo_, &jobz_, &range_, &n_,
-        (double*) D,
-        (double*) E, &vl, &vu, &il_, &iu_, &nfound_,
+        D,
+        E, &vl, &vu, &il_, &iu_, &nfound_,
         S,
         Z, &ldz_,
         &work[0],

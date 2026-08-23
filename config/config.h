@@ -25,12 +25,10 @@
     // macOS Accelerate uses long, Intel MKL uses long long,
     // prefer int64_t (which can be long or long long).
     #ifdef BLAS_HAVE_ACCELERATE
-        #pragma message "Accelerate ilp64 (long)"
         #define ACCELERATE_LAPACK_ILP64
         typedef long blas_int;
         typedef long lapack_int;
     #else
-        #pragma message "ilp64 (int64_t)"
         typedef int64_t blas_int;
         typedef int64_t lapack_int;
     #endif
@@ -42,7 +40,6 @@
 //------------------------------------------------------------------------------
 #ifdef BLAS_HAVE_ACCELERATE
     // Neither old nor new macOS Accelerate API passes strlen.
-    #pragma message "Accelerate undef strlen"
     #undef BLAS_FORTRAN_STRLEN_END
     #undef LAPACK_FORTRAN_STRLEN_END
 #else

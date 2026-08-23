@@ -49,31 +49,31 @@ extern "C" {
 *  The value is selected if function returns TRUE (non-zero). */
 
 #ifdef ACCELERATE_NEW_LAPACK
-// Apple's prototypes take its own callback types, whose arguments are
-// non-const; call sites cast through these typedefs.
-typedef __LAPACK_sgees_func_ptr LAPACK_S_SELECT2;
-typedef __LAPACK_sgges_func_ptr LAPACK_S_SELECT3;
+    // Apple's prototypes take its own callback types, whose arguments are
+    // non-const; call sites cast through these typedefs.
+    typedef __LAPACK_sgees_func_ptr LAPACK_S_SELECT2;
+    typedef __LAPACK_sgges_func_ptr LAPACK_S_SELECT3;
 
-typedef __LAPACK_dgees_func_ptr LAPACK_D_SELECT2;
-typedef __LAPACK_dgges_func_ptr LAPACK_D_SELECT3;
+    typedef __LAPACK_dgees_func_ptr LAPACK_D_SELECT2;
+    typedef __LAPACK_dgges_func_ptr LAPACK_D_SELECT3;
 
-typedef __LAPACK_cgees_func_ptr LAPACK_C_SELECT1;
-typedef __LAPACK_cgges_func_ptr LAPACK_C_SELECT2;
+    typedef __LAPACK_cgees_func_ptr LAPACK_C_SELECT1;
+    typedef __LAPACK_cgges_func_ptr LAPACK_C_SELECT2;
 
-typedef __LAPACK_zgees_func_ptr LAPACK_Z_SELECT1;
-typedef __LAPACK_zgges_func_ptr LAPACK_Z_SELECT2;
+    typedef __LAPACK_zgees_func_ptr LAPACK_Z_SELECT1;
+    typedef __LAPACK_zgges_func_ptr LAPACK_Z_SELECT2;
 #else
-typedef lapack_logical (*LAPACK_S_SELECT2) ( float const*, float const* );
-typedef lapack_logical (*LAPACK_S_SELECT3) ( float const*, float const*, float const* );
+    typedef lapack_logical (*LAPACK_S_SELECT2) ( float const*, float const* );
+    typedef lapack_logical (*LAPACK_S_SELECT3) ( float const*, float const*, float const* );
 
-typedef lapack_logical (*LAPACK_D_SELECT2) ( double const*, double const* );
-typedef lapack_logical (*LAPACK_D_SELECT3) ( double const*, double const*, double const* );
+    typedef lapack_logical (*LAPACK_D_SELECT2) ( double const*, double const* );
+    typedef lapack_logical (*LAPACK_D_SELECT3) ( double const*, double const*, double const* );
 
-typedef lapack_logical (*LAPACK_C_SELECT1) ( lapack_complex_float const* );
-typedef lapack_logical (*LAPACK_C_SELECT2) ( lapack_complex_float const*, lapack_complex_float const* );
+    typedef lapack_logical (*LAPACK_C_SELECT1) ( lapack_complex_float const* );
+    typedef lapack_logical (*LAPACK_C_SELECT2) ( lapack_complex_float const*, lapack_complex_float const* );
 
-typedef lapack_logical (*LAPACK_Z_SELECT1) ( lapack_complex_double const* );
-typedef lapack_logical (*LAPACK_Z_SELECT2) ( lapack_complex_double const*, lapack_complex_double const* );
+    typedef lapack_logical (*LAPACK_Z_SELECT1) ( lapack_complex_double const* );
+    typedef lapack_logical (*LAPACK_Z_SELECT2) ( lapack_complex_double const*, lapack_complex_double const* );
 #endif
 
 /* -------------------------------------------------------------------------- */
@@ -8778,7 +8778,7 @@ void LAPACK_dbdsdc_base(
 void LAPACK_sbdsvdx_base(
     char const* uplo, char const* jobz, char const* range,
     lapack_int const* n,
-    float const* d, float const* e,
+    float* d, float* e,
     float const* vl, float const* vu,
     lapack_int const* il, lapack_int const* iu,
     lapack_int* nfound,
@@ -8797,7 +8797,7 @@ void LAPACK_sbdsvdx_base(
 void LAPACK_dbdsvdx_base(
     char const* uplo, char const* jobz, char const* range,
     lapack_int const* n,
-    double const* d, double const* e,
+    double* d, double* e,
     double const* vl, double const* vu,
     lapack_int const* il, lapack_int const* iu,
     lapack_int* nfound,
@@ -9213,7 +9213,7 @@ void LAPACK_sopmtr_base(
     char const* side, char const* uplo, char const* trans,
     lapack_int const* m,
     lapack_int const* n,
-    float const* ap,
+    float* ap,
     float const* tau,
     float* c, lapack_int const* ldc,
     float* work,
@@ -9230,7 +9230,7 @@ void LAPACK_dopmtr_base(
     char const* side, char const* uplo, char const* trans,
     lapack_int const* m,
     lapack_int const* n,
-    double const* ap,
+    double* ap,
     double const* tau,
     double* c, lapack_int const* ldc,
     double* work,
