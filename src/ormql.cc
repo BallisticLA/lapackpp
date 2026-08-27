@@ -42,7 +42,7 @@ int64_t ormql(
     lapack_int ineg_one = -1;
     LAPACK_sormql(
         &side_, &trans_, &m_, &n_, &k_,
-        A, &lda_,
+        (float*) A, &lda_,
         tau,
         C, &ldc_,
         qry_work, &ineg_one, &info_
@@ -57,7 +57,7 @@ int64_t ormql(
 
     LAPACK_sormql(
         &side_, &trans_, &m_, &n_, &k_,
-        A, &lda_,
+        (float*) A, &lda_,
         tau,
         C, &ldc_,
         &work[0], &lwork_, &info_
@@ -95,7 +95,7 @@ int64_t ormql(
     lapack_int ineg_one = -1;
     LAPACK_dormql(
         &side_, &trans_, &m_, &n_, &k_,
-        A, &lda_,
+        (double*) A, &lda_,
         tau,
         C, &ldc_,
         qry_work, &ineg_one, &info_
@@ -110,7 +110,7 @@ int64_t ormql(
 
     LAPACK_dormql(
         &side_, &trans_, &m_, &n_, &k_,
-        A, &lda_,
+        (double*) A, &lda_,
         tau,
         C, &ldc_,
         &work[0], &lwork_, &info_

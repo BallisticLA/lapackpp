@@ -42,7 +42,7 @@ int64_t gees(
     lapack_int ineg_one = -1;
     LAPACK_sgees(
         &jobvs_, &sort_,
-        select, &n_,
+        (LAPACK_S_SELECT2) select, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],
@@ -61,7 +61,7 @@ int64_t gees(
 
     LAPACK_sgees(
         &jobvs_, &sort_,
-        select, &n_,
+        (LAPACK_S_SELECT2) select, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],
@@ -106,7 +106,7 @@ int64_t gees(
     lapack_int ineg_one = -1;
     LAPACK_dgees(
         &jobvs_, &sort_,
-        select, &n_,
+        (LAPACK_D_SELECT2) select, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],
@@ -125,7 +125,7 @@ int64_t gees(
 
     LAPACK_dgees(
         &jobvs_, &sort_,
-        select, &n_,
+        (LAPACK_D_SELECT2) select, &n_,
         A, &lda_, &sdim_,
         &WR[0],
         &WI[0],

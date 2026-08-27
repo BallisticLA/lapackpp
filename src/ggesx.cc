@@ -53,7 +53,7 @@ int64_t ggesx(
     lapack_int ineg_one = -1;
     LAPACK_sggesx(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_S_SELECT3) select, &sense_, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],
@@ -80,7 +80,7 @@ int64_t ggesx(
 
     LAPACK_sggesx(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_S_SELECT3) select, &sense_, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],
@@ -142,7 +142,7 @@ int64_t ggesx(
     lapack_int ineg_one = -1;
     LAPACK_dggesx(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_D_SELECT3) select, &sense_, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],
@@ -169,7 +169,7 @@ int64_t ggesx(
 
     LAPACK_dggesx(
         &jobvsl_, &jobvsr_, &sort_,
-        select, &sense_, &n_,
+        (LAPACK_D_SELECT3) select, &sense_, &n_,
         A, &lda_,
         B, &ldb_, &sdim_,
         &alphar[0],

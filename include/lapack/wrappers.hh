@@ -136,16 +136,16 @@ int64_t bdsqr(
 // -----------------------------------------------------------------------------
 int64_t bdsvdx(
     lapack::Uplo uplo, lapack::Job jobz, lapack::Range range, int64_t n,
-    float const* D,
-    float const* E, float vl, float vu, int64_t il, int64_t iu,
+    float* D,
+    float* E, float vl, float vu, int64_t il, int64_t iu,
     int64_t* nfound,
     float* S,
     float* Z, int64_t ldz );
 
 int64_t bdsvdx(
     lapack::Uplo uplo, lapack::Job jobz, lapack::Range range, int64_t n,
-    double const* D,
-    double const* E, double vl, double vu, int64_t il, int64_t iu,
+    double* D,
+    double* E, double vl, double vu, int64_t il, int64_t iu,
     int64_t* nfound,
     double* S,
     double* Z, int64_t ldz );
@@ -4537,14 +4537,14 @@ inline int64_t upgtr(
 // -----------------------------------------------------------------------------
 int64_t opmtr(
     lapack::Side side, lapack::Uplo uplo, lapack::Op trans, int64_t m, int64_t n,
-    float const* AP,
+    float* AP,
     float const* tau,
     float* C, int64_t ldc );
 
 // upmtr alias to opmtr
 inline int64_t upmtr(
     lapack::Side side, lapack::Uplo uplo, lapack::Op trans, int64_t m, int64_t n,
-    float const* AP,
+    float* AP,
     float const* tau,
     float* C, int64_t ldc )
 {
@@ -4553,14 +4553,14 @@ inline int64_t upmtr(
 
 int64_t opmtr(
     lapack::Side side, lapack::Uplo uplo, lapack::Op trans, int64_t m, int64_t n,
-    double const* AP,
+    double* AP,
     double const* tau,
     double* C, int64_t ldc );
 
 // upmtr alias to opmtr
 inline int64_t upmtr(
     lapack::Side side, lapack::Uplo uplo, lapack::Op trans, int64_t m, int64_t n,
-    double const* AP,
+    double* AP,
     double const* tau,
     double* C, int64_t ldc )
 {

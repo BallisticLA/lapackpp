@@ -19,7 +19,7 @@ using blas::real;
 // -----------------------------------------------------------------------------
 int64_t opmtr(
     lapack::Side side, lapack::Uplo uplo, lapack::Op trans, int64_t m, int64_t n,
-    float const* AP,
+    float* AP,
     float const* tau,
     float* C, int64_t ldc )
 {
@@ -57,7 +57,7 @@ int64_t opmtr(
 // -----------------------------------------------------------------------------
 int64_t opmtr(
     lapack::Side side, lapack::Uplo uplo, lapack::Op trans, int64_t m, int64_t n,
-    double const* AP,
+    double* AP,
     double const* tau,
     double* C, int64_t ldc )
 {
