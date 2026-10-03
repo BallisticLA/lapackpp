@@ -1,3 +1,15 @@
+Unreleased
+  - Added `lapack_symbol_suffix` option (and `LAPACK_FORTRAN_SUFFIX` compile
+    define) for linking against LAPACK libraries whose Fortran symbols carry
+    a suffix, e.g. OpenBLAS built with `INTERFACE64=1 SYMBOLSUFFIX=64_`
+    exports `dpotrf_64_`. Empty (default) preserves existing behavior.
+    BLAS++'s `blas_symbol_suffix` is honored automatically. In the Make
+    (`configure.py`) build, the OpenBLAS search also links
+    `-lopenblas${lapack_symbol_suffix}`.
+  - The Make build's OpenBLAS search now also probes `-lopenblas64`, so the
+    ILP64 build on Debian/Ubuntu shipped as `libopenblas64` is found
+    automatically.
+
 2025.05.28 (ABI 2.0.0)
   - Added support for BLIS and libFLAME (hence AOCL)
   - Removed support for ACML
