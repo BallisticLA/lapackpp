@@ -73,8 +73,13 @@ endif()
 #-------------------------------------------------------------------------------
 # Find LAPACKE, either in the BLAS/LAPACK library or in -llapacke.
 # Check for pstrf (Cholesky with pivoting).
+# For ILP64, first try -llapacke64, as Debian/Ubuntu ship it.
 
-set( lib_list ";-llapacke" )
+if ("${blaspp_defines}" MATCHES "ILP64")
+    set( lib_list ";-llapacke64;-llapacke" )
+else()
+    set( lib_list ";-llapacke" )
+endif()
 message( DEBUG "lib_list ${lib_list}" )
 
 foreach (lib IN LISTS lib_list)

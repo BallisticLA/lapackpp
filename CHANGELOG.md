@@ -12,6 +12,9 @@ Unreleased
     automatically.
   - Fixed CMake detection of LAPACKE for ILP64 libraries other than MKL,
     such as OpenBLAS.
+  - For ILP64, the LAPACKE search now also probes `-llapacke64`, so the
+    ILP64 LAPACKE on Debian/Ubuntu shipped as `liblapacke64` is found
+    automatically.
 
 2025.05.28 (ABI 2.0.0)
   - Added support for BLIS and libFLAME (hence AOCL)

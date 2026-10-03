@@ -515,7 +515,8 @@ def lapack():
 def lapacke():
     '''
     Search for LAPACKE in existing BLAS/LAPACK libraries,
-    found with blas() and lapack(), then in -llapacke.
+    found with blas() and lapack(), then in -llapacke64 (ILP64 only)
+    and -llapacke.
     '''
     print_header( 'LAPACKE library' )
     choices = [
@@ -523,6 +524,11 @@ def lapacke():
         ['LAPACKE (LAPACKE_dpstrf) in -llapacke',
             {'LIBS': '-llapacke'}],
     ]
+    # For ILP64, try -llapacke64, as Debian/Ubuntu ship it, before -llapacke.
+    if (re.search( r'_ILP64\b', config.environ['CXXFLAGS'] )):
+        choices.insert( 1,
+            ['LAPACKE (LAPACKE_dpstrf) in -llapacke64',
+             {'LIBS': '-llapacke64'}] )
 
     passed = []
     for (label, env) in choices:
