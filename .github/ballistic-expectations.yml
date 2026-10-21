@@ -1,0 +1,39 @@
+# Fork CI expectations for BallisticLA/lapackpp, read by .github/ballistic/ci.py.
+#
+# One line per sub-check this repository owns: the LAPACK++ regression checks,
+# plus every sub-check owned by a LAPACK++ patch (L1 to L4), whichever library
+# it builds. BallisticLA/blaspp's file holds the rest. ci.py (LANES) defines
+# the sub-checks and their owners; BALLISTIC.md describes the lanes.
+#
+#   pass          the sub-check must pass
+#   xfail:<id>    the sub-check must fail, because patch <id> is not in main yet
+#
+# A patch PR changes its own entries from xfail:<id> to pass. The check job
+# fails on any mismatch, an unexpected pass included.
+
+# Regression checks (no owning patch).
+1-cmake.lapackpp: pass
+1-make.lapackpp: pass
+2.lapackpp: pass
+4a.lapackpp: pass
+4b.lapackpp: pass
+6.lapackpp.identical: pass
+6b.lapackpp.sanity: pass
+7a.lapackpp: pass
+7b.lapackpp: pass
+7c.lapackpp: pass
+
+# L1 (upstream PR to be opened): LAPACK_LIBRARIES paths with spaces.
+5b.lapackpp: xfail:L1
+8b.lapackpp: xfail:L1
+
+# L2, icl-utk-edu/lapackpp#91: symbol-suffixed ILP64 OpenBLAS.
+3-cmake.lapackpp: xfail:L2
+3-make.lapackpp: xfail:L2
+
+# L3 (upstream PR to be opened): gemqrt with m = 0 or n = 0.
+6b.lapackpp.zero-dims: xfail:L3
+
+# L4 (upstream PR to be opened): a re-configure drops LAPACK++ defines.
+6.lapackpp.option: xfail:L4
+6.lapackpp.failed-then-fixed: xfail:L4
