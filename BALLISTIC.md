@@ -88,13 +88,16 @@ upstream ancestor and `main` cannot be merged forward. When upstream moves:
 
 `.github/workflows/ballistic-ci.yml` and `.github/ballistic/ci.py` are
 identical in both forks. A change to either goes through a fork PR in each
-fork with identical content.
+fork with identical content. While such a change has landed in only one fork,
+runs there report the other fork's mismatching expectation entries as notices
+and use their upstream defaults, so the second PR can follow.
 
 **Triggers.** A pull request into `main`, a push to `main`, and
-`workflow_dispatch` with `blaspp_ref` and `lapackpp_ref` (full SHAs; empty
-means that fork's current `main`) and `expect` (below). Each run builds
-exactly two commits, fetched by SHA and printed in the run summary: the
-commit under test from this fork, and `main` of the other fork.
+`workflow_dispatch` with `blaspp_ref`, `lapackpp_ref` (full SHAs) and `expect`
+(below). Each run builds exactly two commits, fetched by SHA and printed in
+the run summary: the commit under test from this fork (for a dispatch with an
+empty ref, the commit the run was started from) and the other fork's `main`
+(or the given ref).
 
 **Lanes.** Each lane is one job; each records one or more sub-checks. A build
 sub-check configures, builds and installs one library; checks the installed
@@ -107,68 +110,91 @@ for BLAS++, `--quick --host` for LAPACK++).
 | 1-cmake, 1-make | ubuntu-24.04 | apt OpenBLAS LP64; CMake with `blas=auto`, and make | `.blaspp`, `.lapackpp` |
 | 2 | ubuntu-24.04 | apt `libopenblas64` (ILP64, unsuffixed) | `.blaspp`; `.lapackpp` (L2: `-llapacke64`) |
 | 3-cmake, 3-make | ubuntu-24.04 | conda-forge `libopenblas64_`, `blas_symbol_suffix=64_` | `.blaspp`; `.lapackpp` (L2) |
-| 4a, 4b | ubuntu-24.04 | oneMKL ILP64 (Ubuntu `libmkl-dev`) in `BLAS_LIBRARIES`, as (a) a semicolon list and (b) one space-separated string of `-l` flags | `.blaspp`, `.lapackpp` |
+| 4a, 4b | ubuntu-24.04 | oneMKL ILP64 (Ubuntu `libmkl-dev`) as `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` of both libraries, (a) as a semicolon list and (b) as one space-separated string of `-l` flags | `.blaspp`, `.lapackpp` |
 | 5a | ubuntu-24.04 | OpenBLAS copied into a directory `blas dir`, given to BLAS++ as `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` | `.blaspp`, `.lapackpp` (B1) |
 | 5b | ubuntu-24.04 | the same copy, given to LAPACK++ as `LAPACK_LIBRARIES` | `.lapackpp` (L1) |
 | 6 | ubuntu-24.04 | re-configure an existing build tree, then byte-compare `defines.h` and `<lib>Config.cmake` with a fresh configure | `.blaspp.identical` (B2a); `.blaspp.fortran`, `.blaspp.suffix`, `.blaspp.failed-then-fixed` (B2b); `.lapackpp.identical`; `.lapackpp.option`, `.lapackpp.failed-then-fixed` (L4) |
 | 6b | ubuntu-24.04 | LAPACK++ built with `-D_GLIBCXX_ASSERTIONS` | `.lapackpp.sanity`; `.lapackpp.zero-dims` (L3) |
-| 7a, 7b, 7c | macos-15 | new Accelerate LP64; ILP64; LAPACK++ with `LAPACK_LIBRARIES="-framework Accelerate"`. No LAPACKE, so build and consumer only | `.blaspp`, `.lapackpp` |
-| 8a | windows-2022 | MSVC; oneMKL ILP64 from Intel's NuGet packages (pinned, SHA256-checked), import libraries copied into a directory `intel mkl`, given to BLAS++ as `BLAS_LIBRARIES` | `.blaspp`, `.lapackpp` (B1) |
-| 8b | windows-2022 | the same copy, given to LAPACK++ as `LAPACK_LIBRARIES` | `.blaspp`; `.lapackpp` (L1) |
+| 7a, 7b | macos-15 | new Accelerate, LP64 and ILP64. No LAPACKE, so build and consumer only | `.blaspp`, `.lapackpp` |
+| 7c | macos-15 | LAPACK++ with `LAPACK_LIBRARIES="-framework Accelerate"`; build and consumer only | `.lapackpp` |
+| 8a | windows-2022 | MSVC; oneMKL ILP64 from Intel's NuGet packages (pinned; SHA256-checked when downloaded, then cached), import libraries copied into a directory `intel mkl`, given to BLAS++ as `BLAS_LIBRARIES` | `.blaspp`, `.lapackpp` (B1) |
+| 8b | windows-2022 | the same libraries at a path without spaces; LAPACK++ found in them, and LAPACK++ given the spaced copies as `LAPACK_LIBRARIES` | `.blaspp`, `.lapackpp`; `.lapackpp.spaced` (L1) |
 
 Lane 6 scenarios: `identical` re-runs the same configure (BLAS++ also builds
 LAPACK++ against the re-configured install); `fortran` changes `blas_fortran`;
 `suffix` adds `blas_symbol_suffix=64_` after a configure without it failed;
 `failed-then-fixed` names a library that appears only after the first
 configure failed; `option` changes LAPACK++'s `lapack` option. Lane 6b runs
-`gemqrt` with m = 0 (side R) and n = 0 (side L), where the workspace is empty.
+`gemqrt` with m = 0 (side R) and n = 0 (side L), where the workspace is empty,
+and requires printed passing results. Upstream's tester also takes `&C[0]` of
+its empty C when n = 0, so the side-L runs pass only with L3's tester change
+as well as its library change.
 
 **Expectations.** `.github/ballistic-expectations.yml` gives each sub-check an
 expected outcome: `pass`, or `xfail:<id>` while patch `<id>` is not in `main`.
 An entry lives in the fork of its owning patch; a sub-check without an owner
 lives in the fork of the library it builds. The check reads both files at the
-commits under test. If the other fork's commit has no file yet, that commit is
-taken as unmodified upstream. The `check expectations` job fails on any
-mismatch, in either direction: an expected pass that fails, or an `xfail` that
-passes. `workflow_dispatch` can override the files with `expect=candidate`
-(every sub-check passes) or `expect=baseline` (every patch-owned sub-check
-fails, the rest pass).
+commits under test; a commit without the file (either fork) is taken as
+unmodified upstream. The `check expectations` job fails on any mismatch, in
+either direction: an expected pass that fails, or an `xfail` that passes.
+`workflow_dispatch` can override the files with `expect=candidate` (every
+sub-check passes) or `expect=baseline` (every patch-owned sub-check fails, the
+rest pass).
 
-**Testers.** `expect_tester` is set per sub-check in `ci.py`: required (the
-tester must build, and its results are compared per routine), best effort
-(Windows: run and recorded, never gating, until a recorded run sets the
-expectation), or none (macOS, where Accelerate has no LAPACKE). On Windows the
-testers do not compile with MSVC upstream (testsweeper v2025.05.28 includes
-`<sys/time.h>`, BLAS++'s `test/test.cc` includes `<unistd.h>`), so lanes 8a
-and 8b are build and consumer checks for now. Per-routine
-results are compared with `.github/ballistic-baseline/<sub-check>.json` in the
-fork of the tested library: a routine that passed there must still pass, a new
-routine must pass, and a routine recorded as failing may keep failing. A
-sub-check without a stored baseline needs every routine to pass. Baselines are
-written from a run's artifacts with
-`ci.py baseline --results <dir> --lib <lib> --dest .github/ballistic-baseline --run-url <url>`
-and committed through a fork PR that says why they changed.
+**Testers.** Each sub-check's tester setting is the third field of its
+`LANES` entry in `ci.py`: `GATE` (expect_tester true: the tester must build,
+and its results are compared per routine), `RECORD` (Windows: run and
+recorded, never gating, until a recorded run sets the expectation) or none
+(macOS, where Accelerate has no LAPACKE). On Windows the testers do not
+compile with MSVC upstream (testsweeper v2025.05.28 includes `<sys/time.h>`,
+BLAS++'s `test/test.cc` includes `<unistd.h>`), so lanes 8a and 8b are build
+and consumer checks for now.
+
+Per-routine results are compared with `.github/ballistic-baseline/<sub-check>.json`
+in the fork of the tested library. A routine that passed there must still run
+and pass, and a new routine must pass. A routine recorded as failing may keep
+failing only in the result rows that failed there, with an exit status equal
+to its number of failed rows (so a crash is not a known failure). A sub-check
+without a stored baseline needs every routine to pass and, when it runs the
+default tester arguments, every routine of `1-cmake.<lib>` to have run.
+Baselines are written from a run's downloaded `results-*` artifacts with
+`ci.py baseline --results <dir> --lib <lib> --dest .github/ballistic-baseline --run-url <url>`,
+which re-parses the raw tester output, refuses sub-checks whose build, checks
+or consumer failed, and records failing routines only with
+`--accept-failures`.
+
+**Relaxing the gate.** In a pull request, the check compares this fork's
+expectations and baselines at the PR's base with its head. Flipping an
+`xfail` to `pass` or adding a baseline is fine. Anything that relaxes the
+gate (an entry leaving `pass` or disappearing; a baseline file or routine
+disappearing; a baseline routine that no longer passes or fails in more rows)
+fails the check unless the PR carries the label `ci-rules-change`; the summary
+lists the changes either way. A changed `ci.py` or workflow is flagged as a
+notice.
 
 **Baseline.** The F0 pull request's first runs on unmodified upstream master
 ([BLAS++](https://github.com/BallisticLA/blaspp/actions/runs/39682095446),
 [LAPACK++](https://github.com/BallisticLA/lapackpp/actions/runs/39682102757))
-produced the stored per-routine baselines. Two findings there: `rotg`
-fails for complex types with Ubuntu 24.04's OpenBLAS 0.3.26 (lanes 1-cmake,
-1-make and 2; recorded as a known failure), and upstream LAPACK++ does not
-find LAPACKE for unsuffixed ILP64 OpenBLAS, so lane 2's LAPACK++ tester is
-not built until L2 adds `-llapacke64`.
+produced the stored per-routine baselines. Two findings there: `rotg` fails
+with Ubuntu 24.04's OpenBLAS 0.3.26 in three complex rows (c n=500, z n=200,
+z n=300; lanes 1-cmake, 1-make and 2; recorded as a known failure), and
+upstream LAPACK++ does not find LAPACKE for unsuffixed ILP64 OpenBLAS, so lane
+2's LAPACK++ tester is not built until L2 adds `-llapacke64`.
 
 **Merge rule.** A fork PR is merged only after its `ballistic-ci` run has
 finished and `check expectations` has passed. A patch PR changes its own
 entries from `xfail:<id>` to `pass`; that proves the fix while every other
 sub-check is held to the baseline. After a merge into one fork's `main`, a
-`workflow_dispatch` run on the other fork's `main` confirms the pair.
+`workflow_dispatch` run on the other fork's `main` confirms the pair. A run
+re-used with "Re-run failed jobs" keeps its resolved commits; use "Re-run all
+jobs" to pick up the other fork's new `main`.
 
 **First merge (F0).** While a fork's `main` has no F0 yet, runs in the other
 fork find no expectations or baselines for it: they treat it as unmodified
 upstream and require every one of its tester routines to pass. BLAS++'s known
 `rotg` failure therefore fails the LAPACK++ F0 run until BLAS++'s F0 is in
-`main`. Merge BLAS++'s F0 first, then re-run and merge LAPACK++'s.
+`main`. Merge BLAS++'s F0 first, then "Re-run all jobs" on LAPACK++'s F0 run
+and merge it once it passes.
 
 **Not covered yet.** The CUDA re-configure case (no GPU runners). A
 `lapack_symbol_suffix` re-configure scenario arrives with the L4/L2

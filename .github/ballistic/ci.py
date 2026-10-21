@@ -44,6 +44,8 @@ PATCHES = {
 }
 
 EXPECTATIONS = '.github/ballistic-expectations.yml'
+# A pull request that relaxes expectations or baselines needs this label.
+RULES_LABEL = 'ci-rules-change'
 BASELINE_DIR = '.github/ballistic-baseline'
 
 GATE = 'gate'      # expect_tester true: the tester must build, and its per-routine
@@ -65,9 +67,10 @@ LANES = collections.OrderedDict([
     # 3: conda-forge libopenblas64_ (ILP64, symbols suffixed 64_); LAPACK++ needs L2.
     ('3-cmake', ('linux', [('3-cmake.blaspp', None, GATE), ('3-cmake.lapackpp', 'L2', GATE)])),
     ('3-make', ('linux', [('3-make.blaspp', None, GATE), ('3-make.lapackpp', 'L2', GATE)])),
-    # 4: oneMKL ILP64 named through BLAS_LIBRARIES, (a) as a semicolon list and
-    # (b) as one space-separated string of -l flags. Both work upstream; B1
-    # changes how they are split, so both must keep passing.
+    # 4: oneMKL ILP64 named through BLAS_LIBRARIES and LAPACK_LIBRARIES, (a) as
+    # a semicolon list and (b) as one space-separated string of -l flags. Both
+    # work upstream; B1 and L1 change how they are split, so both must keep
+    # passing.
     ('4a', ('linux', [('4a.blaspp', None, GATE), ('4a.lapackpp', None, GATE)])),
     ('4b', ('linux', [('4b.blaspp', None, GATE), ('4b.lapackpp', None, GATE)])),
     # 5: OpenBLAS at a path with a space. (a) BLAS_LIBRARIES and LAPACK_LIBRARIES
@@ -92,10 +95,12 @@ LANES = collections.OrderedDict([
     ('7b', ('macos', [('7b.blaspp', None, NONE), ('7b.lapackpp', None, NONE)])),
     ('7c', ('macos', [('7c.lapackpp', None, NONE)])),
     # 8: MSVC + oneMKL ILP64 (NuGet) at a path with spaces. (a) BLAS_LIBRARIES
-    # given to BLAS++ (B1); (b) LAPACK_LIBRARIES given to LAPACK++ (L1).
+    # given to BLAS++ (B1); (b) LAPACK++ against the same libraries without
+    # spaces, then given them at the spaced path as LAPACK_LIBRARIES (L1).
     # Testers are best effort until a recorded run sets their expectation.
     ('8a', ('windows', [('8a.blaspp', 'B1', RECORD), ('8a.lapackpp', 'B1', RECORD)])),
-    ('8b', ('windows', [('8b.blaspp', None, RECORD), ('8b.lapackpp', 'L1', RECORD)])),
+    ('8b', ('windows', [('8b.blaspp', None, RECORD), ('8b.lapackpp', None, RECORD),
+                        ('8b.lapackpp.spaced', 'L1', NONE)])),
 ])
 
 SUB = collections.OrderedDict()
@@ -252,56 +257,72 @@ def ls_remote_main(url):
 # ------------------------------------------------------- tester output parser
 
 def parse_run_tests(stdout_text, xml_text, exit_code, test_cmd):
-    """Turn run_tests.py output into {routine key: 'pass' | 'fail'}.
+    """Turn run_tests.py output into per-routine results.
 
     run_tests.py prints each tester command (starting with test_cmd), the
     tester's output, then a line 'pass' or 'FAILED: exit code N'. The key is
-    the routine plus its --type value, with '#2', '#3' for repeats. The result
-    is cross-checked against the --xml report and the exit status (the number
-    of failed commands). Returns (routines, error); error is None when the
-    three agree."""
+    the routine plus its --type value, with '#2', '#3' for repeats. For a
+    failed command, `details` records the tester's exit status and its failed
+    result rows ('#<row> <first two columns>', in the order printed), so a
+    known failure can be held to the rows that failed before. The result is
+    cross-checked against the --xml report and the exit status of
+    run_tests.py (the number of failed commands).
+    Returns (routines, details, error); error is None when all agree."""
     prefix = test_cmd + ' '
-    entries, current = [], None
+    entries, current, body = [], None, []
     for line in stdout_text.splitlines():
         if line.startswith(prefix):
             if current is not None:
-                return {}, f'no result line for: {current}'
-            current = line
+                return {}, {}, f'no result line for: {current}'
+            current, body = line, []
         elif line == 'pass' or line.startswith('FAILED: exit code'):
             if current is None:
-                return {}, f'result line without a command: {line}'
-            entries.append((current, 'pass' if line == 'pass' else 'fail'))
+                return {}, {}, f'result line without a command: {line}'
+            entries.append((current, 'pass' if line == 'pass' else 'fail', line, body))
             current = None
+        elif current is not None:
+            body.append(line)
     if current is not None:
-        return {}, f'run_tests.py stopped during: {current}'
+        return {}, {}, f'run_tests.py stopped during: {current}'
     if not entries:
-        return {}, 'run_tests.py ran no routines'
-    routines, seen = collections.OrderedDict(), collections.Counter()
-    for cmd, status in entries:
+        return {}, {}, 'run_tests.py ran no routines'
+    routines, details, seen = collections.OrderedDict(), {}, collections.Counter()
+    for cmd, status, result, lines in entries:
         toks = cmd.split()
         routine = toks[-1]
         types = toks[toks.index('--type') + 1] if '--type' in toks[:-1] else ''
         base = f'{routine} [{types}]' if types else routine
         seen[base] += 1
-        routines[base if seen[base] == 1 else f'{base} #{seen[base]}'] = status
+        key = base if seen[base] == 1 else f'{base} #{seen[base]}'
+        routines[key] = status
+        if status == 'fail':
+            m = re.match(r'FAILED: exit code (-?\d+)', result)
+            rows, n = [], 0
+            for row in lines:
+                cols = row.split()
+                if len(cols) >= 3 and cols[-1] in ('pass', 'FAILED'):
+                    n += 1
+                    if cols[-1] == 'FAILED':
+                        rows.append(f'#{n} {cols[0]} {cols[1]}')
+            details[key] = {'exit': int(m.group(1)) if m else None, 'rows': rows}
     if xml_text is None:
-        return routines, 'run_tests.py wrote no XML report'
+        return routines, details, 'run_tests.py wrote no XML report'
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError as e:
-        return routines, f'unreadable XML report: {e}'
+        return routines, details, f'unreadable XML report: {e}'
     from_xml = collections.Counter(
         (tc.get('name'), 'fail' if tc.find('failure') is not None else 'pass')
         for tc in root.iter('testcase'))
-    from_out = collections.Counter((cmd.split()[-1], status) for cmd, status in entries)
+    from_out = collections.Counter((e[0].split()[-1], e[1]) for e in entries)
     if from_xml != from_out:
-        return routines, ('console output and XML report disagree: '
-                          f'only in output {dict(from_out - from_xml)}, '
-                          f'only in XML {dict(from_xml - from_out)}')
-    nfail = sum(1 for _, s in entries if s == 'fail')
+        return routines, details, ('console output and XML report disagree: '
+                                   f'only in output {dict(from_out - from_xml)}, '
+                                   f'only in XML {dict(from_xml - from_out)}')
+    nfail = sum(1 for e in entries if e[1] == 'fail')
     if exit_code != nfail % 256:
-        return routines, f'exit status {exit_code}, but {nfail} failed commands were parsed'
-    return routines, None
+        return routines, details, f'exit status {exit_code}, but {nfail} failed commands were parsed'
+    return routines, details, None
 
 
 def failing_blocks(text, test_cmd, limit=60):
@@ -563,7 +584,7 @@ class Runner:
         rec = self.rec(key)
         exe = test_dir / ('tester.exe' if self.win else 'tester')
         if not built or not exe.exists():
-            rec['tester'] = {'present': False}
+            rec['tester'] = {'present': False, 'args': list(args)}
             print(f'[{key}] tester: not built', flush=True)
             return
         self.group(f'{key}: run_tests.py {" ".join(args)}')
@@ -577,7 +598,7 @@ class Runner:
                  env=self.runtime_env(dll_dirs), timeout=timeout, stdout_path=out_txt)
         text = out_txt.read_text(encoding='utf-8', errors='replace') if out_txt.exists() else ''
         xml_text = xml.read_text(encoding='utf-8', errors='replace') if xml.exists() else None
-        routines, err = parse_run_tests(text, xml_text, rc, test_cmd)
+        routines, details, err = parse_run_tests(text, xml_text, rc, test_cmd)
         if rc == 124:
             err = f'run_tests.py timed out after {timeout} s'
         failed = [k for k, v in routines.items() if v != 'pass']
@@ -586,7 +607,8 @@ class Runner:
         if failed or err:
             print(failing_blocks(text, test_cmd) if failed else tail(out_txt, 80))
         self.endgroup()
-        rec['tester'] = {'present': True, 'exit': rc, 'routines': routines, 'parse_error': err}
+        rec['tester'] = {'present': True, 'args': list(args), 'exit': rc, 'routines': routines,
+                         'details': details, 'parse_error': err}
 
     # -- re-configure scenarios
     def snapshot(self, lib, bdir, dest):
@@ -806,11 +828,13 @@ def recipe(r):
     elif lane in ('4a', '4b'):
         libs = ['-lmkl_gf_ilp64', '-lmkl_gnu_thread', '-lmkl_core', '-lgomp', '-lpthread', '-lm', '-ldl']
         value = ';'.join(libs) if lane == '4a' else ' '.join(libs)
+        # The same value as LAPACK_LIBRARIES, for both libraries: B1 and L1
+        # change how LAPACKFinder splits it.
         bp = r.cmake_lib(f'{lane}.blaspp', 'blaspp', f'{lane}-blaspp',
-                         [f'-DBLAS_LIBRARIES={value}', '-Dblas_int=int64'],
+                         [f'-DBLAS_LIBRARIES={value}', f'-DLAPACK_LIBRARIES={value}', '-Dblas_int=int64'],
                          checks=[BLAS_MANGLING, defines_has('BLAS_ILP64')])
-        r.cmake_lib(f'{lane}.lapackpp', 'lapackpp', f'{lane}-lapackpp', [], deps=[bp],
-                    checks=[LAPACK_LINUX, ldd_tester(has=[r'libmkl_gf_ilp64\.so'])])
+        r.cmake_lib(f'{lane}.lapackpp', 'lapackpp', f'{lane}-lapackpp', [f'-DLAPACK_LIBRARIES={value}'],
+                    deps=[bp], checks=[LAPACK_LINUX, ldd_tester(has=[r'libmkl_gf_ilp64\.so'])])
 
     elif lane == '5a':
         lib = spaced_openblas(r)
@@ -830,8 +854,10 @@ def recipe(r):
 
     elif lane == '6b':
         bp = r.cmake_lib(None, 'blaspp', '6b-blaspp', lp64, consumer=False)
+        # LAPACK_LINUX: without LAPACK_VERSION the gemqrt tester is compiled
+        # out and would "pass" without calling gemqrt.
         pre = r.cmake_lib('6b.lapackpp.sanity', 'lapackpp', '6b-lapackpp', ['-DCMAKE_CXX_FLAGS=-D_GLIBCXX_ASSERTIONS'],
-                          deps=[bp], consumer=False, tester_args=['--quick', 'gemqrt'])
+                          deps=[bp], consumer=False, tester_args=['--quick', 'gemqrt'], checks=[LAPACK_LINUX])
         zero_dims(r, '6b.lapackpp.zero-dims', pre, r.work / 'build' / '6b-lapackpp' / 'test')
 
     elif lane in ('7a', '7b', '7c'):
@@ -869,7 +895,10 @@ def recipe(r):
         else:
             bp = r.cmake_lib('8b.blaspp', 'blaspp', '8b-blaspp', common + ['-DBLAS_LIBRARIES=' + ';'.join(mkl('PLAIN'))],
                              checks=[BLAS_MANGLING, defines_has('BLAS_ILP64')])
-            r.cmake_lib('8b.lapackpp', 'lapackpp', '8b-lapackpp',
+            # LAPACK++ found in the BLAS libraries: the MSVC build must keep passing.
+            r.cmake_lib('8b.lapackpp', 'lapackpp', '8b-lapackpp', ['-Dgpu_backend=none'], deps=[bp],
+                        checks=[defines_has('LAPACK_HAVE_LAPACK')])
+            r.cmake_lib('8b.lapackpp.spaced', 'lapackpp', '8b-lapackpp-spaced',
                         ['-Dgpu_backend=none', '-DLAPACK_LIBRARIES=' + ';'.join(spaced)], deps=[bp],
                         checks=[defines_has('LAPACK_HAVE_LAPACK'), config_has(dirname)])
     else:
@@ -878,7 +907,10 @@ def recipe(r):
 
 def zero_dims(r, key, built, test_dir):
     """gemqrt with m = 0 (side R) and n = 0 (side L): lwork is 0 there, and
-    &work[0] on an empty std::vector trips _GLIBCXX_ASSERTIONS."""
+    &work[0] on an empty std::vector trips _GLIBCXX_ASSERTIONS. With
+    --align 32, ldv = 32 is valid for both shapes. Upstream's tester also takes
+    &C[0] of its empty C when n = 0, so the side-L runs need L3's tester fix
+    as well as its library fix."""
     exe = test_dir / 'tester'
     if built is None or not exe.exists():
         r.blocked(key, ['zero-dims'], 'assertions build or tester missing')
@@ -892,9 +924,15 @@ def zero_dims(r, key, built, test_dir):
         ['--type', 'c,z', '--side', 'l', '--trans', 'n,c', '--dim', '10x0x5'],
     ]
     for i, args in enumerate(runs):
-        rc = r.sh(['./tester', *args, 'gemqrt'], f'{key}.run{i}', cwd=test_dir, echo=True, timeout=600)
+        log = r.logs / f'{key}.run{i}.log'
+        rc = r.sh(['./tester', '--align', '32', *args, 'gemqrt'], f'{key}.run{i}', cwd=test_dir,
+                  echo=True, timeout=600)
+        text = log.read_text(encoding='utf-8', errors='replace') if log.exists() else ''
+        rows = [ln for ln in text.splitlines() if ln.split()[-1:] == ['pass']]
         if rc != 0:
             bad.append(f'{" ".join(args)} -> exit {rc}')
+        elif 'All tests passed for gemqrt.' not in text or not rows:
+            bad.append(f'{" ".join(args)} -> exit 0, but no passing gemqrt results were printed')
     r.endgroup()
     r.phase(key, 'zero-dims', not bad, '; '.join(bad), t0)
 
@@ -1003,48 +1041,137 @@ def validate_expectations(exp, repo, where):
     return errors
 
 
-def load_expectations(mode, srcs):
+def workflow_lib():
+    """The library of the repository running the workflow; None outside Actions."""
+    name = os.environ.get('GITHUB_REPOSITORY', '').split('/')[-1]
+    return name if name in FORK else None
+
+
+def default_expectation(sc):
+    """The expectation for unmodified upstream: owned sub-checks fail."""
+    return f'xfail:{SUB[sc]["owner"]}' if SUB[sc]['owner'] else 'pass'
+
+
+def load_expectations(mode, srcs, strict=None):
     """Expected outcome per sub-check: 'pass' or 'xfail:<patch>'. srcs maps
-    library -> source tree of the commit under test."""
+    library -> source tree of the commit under test. The file of each fork in
+    `strict` (default: the fork running the workflow, or both outside
+    Actions) must be exactly right. The other fork's file has passed that
+    fork's own runs; problems in it (a ci.py that differs between the forks
+    while a CI change lands in one of them first) become notices, and the
+    affected entries fall back to their upstream defaults."""
     exp, errors, notes = {}, [], []
     if mode == 'candidate':
         return {sc: 'pass' for sc in SUB}, [], ['expect=candidate: every sub-check must pass']
     if mode == 'baseline':
-        return ({sc: f'xfail:{SUB[sc]["owner"]}' if SUB[sc]['owner'] else 'pass' for sc in SUB}, [],
+        return ({sc: default_expectation(sc) for sc in SUB}, [],
                 ['expect=baseline: owned sub-checks must fail, the rest pass'])
+    if strict is None:
+        strict = {workflow_lib()} if workflow_lib() else {'blaspp', 'lapackpp'}
     for repo in ('blaspp', 'lapackpp'):
         path = Path(srcs[repo]) / EXPECTATIONS
         where = f'BallisticLA/{repo}:{EXPECTATIONS}'
+        mine = [sc for sc in SUB if repo_of(sc) == repo]
         if not path.exists():
             notes.append(f'{where} does not exist at the commit under test; treating that commit as '
                          'unmodified upstream (its owned sub-checks must fail, the rest pass)')
-            for sc in SUB:
-                if repo_of(sc) == repo:
-                    exp[sc] = f'xfail:{SUB[sc]["owner"]}' if SUB[sc]['owner'] else 'pass'
+            exp.update({sc: default_expectation(sc) for sc in mine})
             continue
         parsed, errs = parse_expectations(path.read_text(encoding='utf-8'), where)
-        errors += errs + validate_expectations(parsed, repo, where)
-        exp.update(parsed)
+        errs += validate_expectations(parsed, repo, where)
+        if repo in strict:
+            errors += errs
+            exp.update(parsed)
+            continue
+        notes += [f'{e} (other fork: entry falls back to its default)' for e in errs]
+        for sc in mine:
+            v = parsed.get(sc)
+            if v is None or (v != 'pass' and v.split(':', 1)[1] != SUB[sc]['owner']):
+                v = default_expectation(sc)
+            exp[sc] = v
     return exp, errors, notes
 
 
+def rules_loosened(base_src, head_src):
+    """Changes from a pull request's base to its head that relax the gate in
+    the fork under test: an expectation that leaves `pass` or disappears; a
+    baseline file or routine that disappears; a baseline routine that no
+    longer passes, or fails in more rows. Returns (loosenings, notes)."""
+    out, notes = [], []
+    bpath, hpath = Path(base_src) / EXPECTATIONS, Path(head_src) / EXPECTATIONS
+    for name in ('.github/ballistic/ci.py', '.github/workflows/ballistic-ci.yml'):
+        b, h = Path(base_src) / name, Path(head_src) / name
+        if b.exists() and (not h.exists() or b.read_bytes() != h.read_bytes()):
+            notes.append(f'{name} changes in this pull request: the gate\'s own code is under review too')
+    if not bpath.exists():
+        notes.append('the base commit has no expectations file; nothing to compare')
+        return out, notes
+    bexp, _ = parse_expectations(bpath.read_text(encoding='utf-8'), 'base')
+    hexp, _ = parse_expectations(hpath.read_text(encoding='utf-8') if hpath.exists() else '', 'head')
+    for sc, b in bexp.items():
+        h = hexp.get(sc)
+        if h is None:
+            out.append(f'{EXPECTATIONS}: {sc} removed (was {b})')
+        elif b == 'pass' and h != 'pass':
+            out.append(f'{EXPECTATIONS}: {sc} {b} -> {h}')
+    bdir = Path(base_src) / BASELINE_DIR
+    for bf in sorted(bdir.glob('*.json')) if bdir.is_dir() else []:
+        hf = Path(head_src) / BASELINE_DIR / bf.name
+        if not hf.exists():
+            out.append(f'{BASELINE_DIR}/{bf.name} removed')
+            continue
+        b, h = json.loads(bf.read_text(encoding='utf-8')), json.loads(hf.read_text(encoding='utf-8'))
+        for k, bv in b['routines'].items():
+            hv = h['routines'].get(k)
+            if hv is None:
+                out.append(f'{bf.name}: {k} removed')
+            elif bv == 'pass' and hv != 'pass':
+                out.append(f'{bf.name}: {k} pass -> {hv}')
+            elif bv != 'pass' and hv != 'pass':
+                extra = (set(h.get('details', {}).get(k, {}).get('rows', []))
+                         - set(b.get('details', {}).get(k, {}).get('rows', [])))
+                if extra:
+                    out.append(f'{bf.name}: {k} fails in more rows: {", ".join(sorted(extra))}')
+    return out, notes
+
+
 def load_baseline(srcs, sc):
+    """The stored baseline of sub-check sc ({'routines': ..., 'details': ...}), or None."""
     path = Path(srcs[SUB[sc]['lib']]) / BASELINE_DIR / f'{sc}.json'
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding='utf-8'))['routines']
+    return json.loads(path.read_text(encoding='utf-8'))
 
 
-def compare_routines(cur, base):
+def reference_routines(srcs, sc, args):
+    """Routines a sub-check without its own baseline must still run: those of
+    1-cmake.<lib>'s baseline, when the sub-check ran the same run_tests.py
+    arguments."""
+    lib = SUB[sc]['lib']
+    if args != (BLASPP_TESTS if lib == 'blaspp' else LAPACKPP_TESTS):
+        return None
+    ref = load_baseline(srcs, f'1-cmake.{lib}')
+    return list(ref['routines']) if ref else None
+
+
+def compare_routines(cur, base, details=None, required=None):
     """Problems (fail the sub-check) and notes, comparing per-routine results
-    with the stored baseline. Without a baseline every routine must pass."""
-    problems, notes = [], []
+    with the stored baseline. Without a baseline every routine must pass, and
+    every routine in `required` must have run. A routine that failed in the
+    baseline may keep failing, but only in the result rows that failed there,
+    and with an exit status equal to its number of failed rows."""
+    problems, notes, details = [], [], details or {}
     if base is None:
         failed = [k for k, v in cur.items() if v != 'pass']
         if failed:
             problems.append(f'{len(failed)} routine(s) failed (no stored baseline): ' + ', '.join(failed[:8]))
+        missing = [k for k in (required or []) if k not in cur]
+        if missing:
+            problems.append(f'{len(missing)} routine(s) of the 1-cmake reference did not run: '
+                            + ', '.join(missing[:8]))
         return problems, notes
-    for k, b in base.items():
+    broutines, bdetails = base['routines'], base.get('details', {})
+    for k, b in broutines.items():
         c = cur.get(k)
         if c is None:
             problems.append(f'{k}: did not run (baseline {b})')
@@ -1053,9 +1180,20 @@ def compare_routines(cur, base):
         elif b != 'pass' and c == 'pass':
             notes.append(f'{k}: now passes (baseline {b})')
         elif b != 'pass':
-            notes.append(f'{k}: known failure')
+            cd, bd = details.get(k, {}), bdetails.get(k)
+            rows = cd.get('rows', [])
+            if bd is None:
+                problems.append(f'{k}: known failure without recorded rows in the baseline')
+            elif set(rows) - set(bd['rows']):
+                problems.append(f'{k}: known failure, but new failed rows: '
+                                + ', '.join(sorted(set(rows) - set(bd['rows']))[:6]))
+            elif cd.get('exit') != len(rows) or not rows:
+                problems.append(f'{k}: exit status {cd.get("exit")} with {len(rows)} failed rows '
+                                '(a crash or an unreported failure)')
+            else:
+                notes.append(f'{k}: known failure ({", ".join(rows)})')
     for k, c in cur.items():
-        if k not in base:
+        if k not in broutines:
             if c != 'pass':
                 problems.append(f'{k}: fails (not in baseline)')
             else:
@@ -1078,7 +1216,9 @@ def outcome(sc, rec, srcs):
         elif t.get('parse_error'):
             reasons.append(f'tester: {t["parse_error"]}')
         else:
-            problems, n = compare_routines(t['routines'], load_baseline(srcs, sc))
+            base = load_baseline(srcs, sc)
+            required = None if base else reference_routines(srcs, sc, t.get('args'))
+            problems, n = compare_routines(t['routines'], base, t.get('details'), required)
             reasons += [f'tester: {p}' for p in problems]
             notes += n
     elif mode == RECORD and t:
@@ -1091,10 +1231,10 @@ def outcome(sc, rec, srcs):
     return ('fail' if reasons else 'pass'), reasons, notes
 
 
-def judge(results, lanes, mode, srcs, shas):
+def judge(results, lanes, mode, srcs, shas, strict=None):
     """Compare recorded results of `lanes` with the expectations. Returns
     (rows, ok)."""
-    exp, errors, notes = load_expectations(mode, srcs)
+    exp, errors, notes = load_expectations(mode, srcs, strict)
     for n in notes:
         print(f'::notice::{n}')
     for e in errors:
@@ -1170,6 +1310,9 @@ def cmd_resolve(a):
                 if not SHA_RE.match(given):
                     die(f'{lib}_ref must be a full 40-character commit SHA, got {given!r}')
                 sha[lib], how[lib] = given, 'workflow_dispatch input'
+            elif lib == name:
+                # Empty for this fork: the commit the run was started from.
+                sha[lib], how[lib] = os.environ['GITHUB_SHA'], 'the dispatched commit'
             else:
                 sha[lib], how[lib] = ls_remote_main(url[lib]), 'main (resolved now)'
         expect = os.environ.get('INPUT_EXPECT', '').strip() or 'file'
@@ -1177,16 +1320,26 @@ def cmd_resolve(a):
         sha[name], how[name] = os.environ['GITHUB_SHA'], f'{event} commit'
         sha[other(name)], how[other(name)] = ls_remote_main(url[other(name)]), 'main (resolved now)'
         expect = 'file'
+    base_sha, label = '', 'false'
+    if event == 'pull_request':
+        ev = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
+        base_sha = ev['pull_request']['base']['sha']
+        if any(lb.get('name') == RULES_LABEL for lb in ev['pull_request'].get('labels', [])):
+            label = 'true'
     if expect not in ('file', 'candidate', 'baseline'):
         die(f'expect must be file, candidate or baseline, got {expect!r}')
     lines = [f'{lib}: {url[lib]} @ {sha[lib]}  [{how[lib]}]' for lib in ('blaspp', 'lapackpp')]
     lines.append(f'expectations: {expect}')
+    if base_sha:
+        lines.append(f'pull request base: {base_sha}; label {RULES_LABEL}: {label}')
     print('\n'.join(lines))
     summary('### Commits under test\n\n' + '\n'.join(f'- {x}' for x in lines))
     for lib in ('blaspp', 'lapackpp'):
         gh_out(f'{lib}_url', url[lib])
         gh_out(f'{lib}_sha', sha[lib])
     gh_out('expect', expect)
+    gh_out('base_sha', base_sha)
+    gh_out('rules_label', label)
 
 
 def cmd_lane(a):
@@ -1231,9 +1384,32 @@ def cmd_check(a):
     for lane in results:
         if lane not in LANES:
             print(f'::error::results for unknown lane {lane}')
+    copies = {lib: srcs[lib] / '.github' / 'ballistic' / 'ci.py' for lib in srcs}
+    if all(f.exists() for f in copies.values()) and len({f.read_bytes() for f in copies.values()}) > 1:
+        print('::warning::.github/ballistic/ci.py differs between the two commits under test; '
+              'a CI change has landed in one fork only')
     rows, ok = judge(results, list(LANES), a.expect, srcs, shas)
     ok = ok and all(lane in LANES for lane in results)
+    loosened = []
+    if a.base_sha:
+        # A pull request may tighten the gate (an xfail flipped to pass, a new
+        # baseline) but not relax it without the RULES_LABEL label.
+        lib = workflow_lib()
+        if lib is None or not SHA_RE.match(a.base_sha):
+            die('--base-sha needs a full SHA and a blaspp or lapackpp repository')
+        base = work / 'base' / lib
+        fetch(getattr(a, f'{lib}_url'), a.base_sha, base, work / 'fetch.log')
+        loosened, lnotes = rules_loosened(base, srcs[lib])
+        for n in lnotes:
+            print(f'::notice::{n}')
+        for x in loosened:
+            print(f'::{"warning" if a.rules_label == "true" else "error"}::gate relaxed: {x}')
+        if loosened and a.rules_label != 'true':
+            ok = False
     report(rows, ok, 'All lanes')
+    if loosened:
+        summary(f'### Gate relaxed by this pull request ({"accepted: label " + RULES_LABEL if a.rules_label == "true" else "not allowed without the label " + RULES_LABEL})\n\n'
+                + '\n'.join(f'- {x}' for x in loosened))
     out = {'blaspp': shas['blaspp'], 'lapackpp': shas['lapackpp'], 'expect': a.expect, 'ok': ok,
            'subchecks': {sc: {'expected': want, 'outcome': got, 'verdict': v, 'reasons': rs, 'notes': ns}
                          for sc, want, got, v, rs, ns in rows}}
@@ -1243,12 +1419,15 @@ def cmd_check(a):
 
 def cmd_baseline(a):
     """Write .github/ballistic-baseline/<sub-check>.json for every gated
-    sub-check of library a.lib whose tester ran and parsed cleanly."""
-    results = load_results(a.results)
+    sub-check of library a.lib in a run's downloaded `results-*` artifacts.
+    The routines are re-parsed from the raw run_tests.py output in each
+    artifact. Refuses a sub-check whose build, checks or consumer failed, and
+    records failing routines as known failures only with --accept-failures."""
     dest = Path(a.dest)
     dest.mkdir(parents=True, exist_ok=True)
-    written = 0
-    for lane, res in results.items():
+    written, refused = 0, 0
+    for f in sorted(Path(a.results).rglob('result.json')):
+        res = json.loads(f.read_text(encoding='utf-8'))
         for sc, rec in res['subchecks'].items():
             if SUB[sc]['lib'] != a.lib or SUB[sc]['tester'] != GATE:
                 continue
@@ -1256,16 +1435,39 @@ def cmd_baseline(a):
             if not t or not t.get('present') or t.get('parse_error'):
                 print(f'{sc}: no usable tester results; no baseline written')
                 continue
+            bad = [n for n, ph in rec['phases'].items() if ph['status'] != 'pass']
+            if bad:
+                print(f'{sc}: REFUSED, phases did not pass: {", ".join(bad)}')
+                refused += 1
+                continue
+            out, xml = f.parent / 'tester' / f'{sc}.out.txt', f.parent / 'tester' / f'{sc}.xml'
+            routines, details, err = parse_run_tests(
+                out.read_text(encoding='utf-8', errors='replace'),
+                xml.read_text(encoding='utf-8', errors='replace') if xml.exists() else None,
+                t['exit'], './tester')
+            if err or routines != t['routines']:
+                print(f'{sc}: REFUSED, raw tester output does not reproduce result.json ({err})')
+                refused += 1
+                continue
+            failed = [k for k, v in routines.items() if v != 'pass']
+            if failed and not a.accept_failures:
+                print(f'{sc}: REFUSED, failing routines {failed}; pass --accept-failures to record them')
+                refused += 1
+                continue
             data = {'subcheck': sc, 'run': a.run_url, 'blaspp': res['blaspp']['sha'],
-                    'lapackpp': res['lapackpp']['sha'], 'routines': t['routines']}
+                    'lapackpp': res['lapackpp']['sha'], 'args': t.get('args'),
+                    'routines': routines, 'details': details}
             (dest / f'{sc}.json').write_text(json.dumps(data, indent=1) + '\n', encoding='utf-8')
-            failed = [k for k, v in t['routines'].items() if v != 'pass']
-            print(f'{sc}: {len(t["routines"])} routines' + (f', known failures: {failed}' if failed else ''))
+            print(f'{sc}: {len(routines)} routines'
+                  + (f', known failures: {[(k, details[k]["rows"]) for k in failed]}' if failed else ''))
             written += 1
-    print(f'{written} baseline file(s) written to {dest}')
+    print(f'{written} baseline file(s) written to {dest}; {refused} refused')
+    sys.exit(1 if refused else 0)
 
 
 def cmd_selftest(a):
+    import contextlib
+    import io
     import tempfile
     failures = []
 
@@ -1273,59 +1475,74 @@ def cmd_selftest(a):
         if not cond:
             failures.append(what)
 
-    def judge(*args):
+    def quiet_judge(*args, **kw):
         # Keep the deliberate errors of these cases out of the run's annotations.
-        import contextlib
-        import io
         with contextlib.redirect_stdout(io.StringIO()):
-            return globals()['judge'](*args)
+            return judge(*args, **kw)
 
-    out = ('Mon\n./tester  --type s,d --dim 100 gemm\nhead\n... pass\npass\n'
-           './tester  --type c,z --dim 100 gemm\nFAILED: exit code 1\n'
+    out = ('Mon\n./tester  --type s,d --dim 100 gemm\nhead\n   d   100  1e-16  pass\npass\n'
+           './tester  --type c,z --dim 100 gemm\n   c   100  1e-16  pass\n   z   200  3.1  FAILED\n'
+           '1 tests FAILED for gemm.\nFAILED: exit code 1\n'
            './tester  --dim 100 dot\npass\n')
     xml = ('<testsuites><testsuite><testcase name="gemm"><failure>1</failure></testcase>'
            '<testcase name="gemm">PASSED</testcase><testcase name="dot">PASSED</testcase>'
            '</testsuite></testsuites>')
-    r, err = parse_run_tests(out, xml, 1, './tester')
+    r, d, err = parse_run_tests(out, xml, 1, './tester')
     expect(err is None and r == {'gemm [s,d]': 'pass', 'gemm [c,z]': 'fail', 'dot': 'pass'}, f'parse: {r} {err}')
-    r, err = parse_run_tests(out, xml, 0, './tester')
+    expect(d == {'gemm [c,z]': {'exit': 1, 'rows': ['#2 z 200']}}, f'parse details: {d}')
+    r, d, err = parse_run_tests(out, xml, 0, './tester')
     expect(err is not None, 'parse: wrong exit status accepted')
-    r, err = parse_run_tests(out, xml.replace('<failure>1</failure>', ''), 1, './tester')
+    r, d, err = parse_run_tests(out, xml.replace('<failure>1</failure>', ''), 1, './tester')
     expect(err is not None, 'parse: XML disagreement accepted')
-    r, err = parse_run_tests(out + './tester  --dim 5 nrm2\n', xml, 1, './tester')
+    r, d, err = parse_run_tests(out + './tester  --dim 5 nrm2\n', xml, 1, './tester')
     expect(err is not None, 'parse: unterminated command accepted')
-    r, err = parse_run_tests('', None, 0, './tester')
+    r, d, err = parse_run_tests('', None, 0, './tester')
     expect(err is not None, 'parse: empty output accepted')
     out2 = './tester  --type s --dim 1 axpy\npass\n./tester  --type s --dim 2 axpy\npass\n'
     xml2 = ('<testsuites><testsuite><testcase name="axpy">PASSED</testcase>'
             '<testcase name="axpy">PASSED</testcase></testsuite></testsuites>')
-    r, err = parse_run_tests(out2, xml2, 0, './tester')
+    r, d, err = parse_run_tests(out2, xml2, 0, './tester')
     expect(err is None and list(r) == ['axpy [s]', 'axpy [s] #2'], f'parse repeats: {r}')
 
-    p, _ = compare_routines({'a': 'pass', 'b': 'fail'}, {'a': 'pass', 'b': 'pass'})
+    def bl(routines, details=None):
+        return {'routines': routines, 'details': details or {}}
+    p, _ = compare_routines({'a': 'pass', 'b': 'fail'}, bl({'a': 'pass', 'b': 'pass'}))
     expect(p and 'b' in p[0], 'compare: regression missed')
-    p, _ = compare_routines({'a': 'pass'}, {'a': 'pass', 'b': 'pass'})
+    p, _ = compare_routines({'a': 'pass'}, bl({'a': 'pass', 'b': 'pass'}))
     expect(p, 'compare: missing routine missed')
-    p, n = compare_routines({'a': 'pass', 'b': 'fail'}, {'a': 'pass', 'b': 'fail'})
-    expect(not p, 'compare: known failure rejected')
-    p, _ = compare_routines({'a': 'pass', 'c': 'fail'}, {'a': 'pass'})
+    known = bl({'a': 'pass', 'b': 'fail'}, {'b': {'exit': 2, 'rows': ['#3 c 500', '#7 z 200']}})
+    p, _ = compare_routines({'a': 'pass', 'b': 'fail'}, known, {'b': {'exit': 2, 'rows': ['#3 c 500', '#7 z 200']}})
+    expect(not p, f'compare: known failure rejected: {p}')
+    p, _ = compare_routines({'a': 'pass', 'b': 'fail'}, known, {'b': {'exit': 1, 'rows': ['#3 c 500']}})
+    expect(not p, f'compare: narrower known failure rejected: {p}')
+    p, _ = compare_routines({'a': 'pass', 'b': 'fail'}, known, {'b': {'exit': 1, 'rows': ['#1 s 100']}})
+    expect(p, 'compare: new failed row of a known failure accepted')
+    p, _ = compare_routines({'a': 'pass', 'b': 'fail'}, known, {'b': {'exit': -11, 'rows': ['#3 c 500']}})
+    expect(p, 'compare: crash of a known failure accepted')
+    p, _ = compare_routines({'a': 'pass', 'b': 'fail'}, bl({'a': 'pass', 'b': 'fail'}), {'b': {'exit': 1, 'rows': ['#1 x 1']}})
+    expect(p, 'compare: known failure without recorded rows accepted')
+    p, _ = compare_routines({'a': 'pass', 'c': 'fail'}, bl({'a': 'pass'}))
     expect(p, 'compare: new failure missed')
     p, _ = compare_routines({'a': 'fail'}, None)
     expect(p, 'compare: failure without baseline missed')
+    p, _ = compare_routines({'a': 'pass'}, None, required=['a', 'b'])
+    expect(p, 'compare: routine missing from the reference set accepted')
 
+    both = {'blaspp', 'lapackpp'}
     with tempfile.TemporaryDirectory() as tmp:
         srcs = {lib: Path(tmp) / lib for lib in ('blaspp', 'lapackpp')}
         for lib in srcs:
             (srcs[lib] / '.github').mkdir(parents=True)
 
-        def write_exp(lib, overrides=None, drop=None):
+        def write_exp(lib, overrides=None, drop=None, root=None):
             lines = []
             for sc in SUB:
                 if repo_of(sc) != lib or sc == drop:
                     continue
-                v = f'xfail:{SUB[sc]["owner"]}' if SUB[sc]['owner'] else 'pass'
-                lines.append(f'{sc}: {(overrides or {}).get(sc, v)}')
-            (srcs[lib] / EXPECTATIONS).write_text('\n'.join(lines) + '\n')
+                lines.append(f'{sc}: {(overrides or {}).get(sc, default_expectation(sc))}')
+            path = Path(root or srcs[lib]) / EXPECTATIONS
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('\n'.join(lines) + '\n')
 
         def fake(lane, outcome_by_sc, tester_present=True, routines=None):
             res = {'lane': lane, 'infra': 'ok', 'blaspp': {'sha': 'b' * 40}, 'lapackpp': {'sha': 'l' * 40},
@@ -1334,8 +1551,8 @@ def cmd_selftest(a):
                 st = outcome_by_sc.get(sc, 'pass')
                 rec = {'phases': {'build': {'status': st, 'note': ''}}, 'tester': None}
                 if mode and st == 'pass':
-                    rec['tester'] = ({'present': True, 'routines': routines or {'gemm [s]': 'pass'},
-                                      'parse_error': None} if tester_present else {'present': False})
+                    rec['tester'] = ({'present': True, 'args': ['--x'], 'routines': routines or {'gemm [s]': 'pass'},
+                                      'details': {}, 'parse_error': None} if tester_present else {'present': False})
                 res['subchecks'][sc] = rec
             return res
 
@@ -1343,50 +1560,83 @@ def cmd_selftest(a):
         write_exp('blaspp')
         write_exp('lapackpp')
         base = {lane: fake(lane, {sc: 'fail' for sc, o, _ in LANES[lane][1] if o}) for lane in LANES}
-        _, ok = judge(base, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(base, list(LANES), 'file', srcs, shas, both)
         expect(ok, 'judge: baseline-shaped results rejected')
-        _, ok = judge(base, list(LANES), 'baseline', srcs, shas)
+        _, ok = quiet_judge(base, list(LANES), 'baseline', srcs, shas, both)
         expect(ok, 'judge: expect=baseline rejected baseline-shaped results')
-        _, ok = judge(base, list(LANES), 'candidate', srcs, shas)
+        _, ok = quiet_judge(base, list(LANES), 'candidate', srcs, shas, both)
         expect(not ok, 'judge: expect=candidate accepted failures')
         missing = dict(base)
         del missing['2']
-        _, ok = judge(missing, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(missing, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: missing lane accepted')
         bad = dict(base)
         bad['1-cmake'] = fake('1-cmake', {}, routines={'gemm [s]': 'fail'})
-        _, ok = judge(bad, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(bad, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: failing routine accepted')
         bad['1-cmake'] = fake('1-cmake', {}, tester_present=False)
-        _, ok = judge(bad, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(bad, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: missing tester accepted')
         fixed = dict(base)
         fixed['5a'] = fake('5a', {})
-        _, ok = judge(fixed, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(fixed, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: unexpected pass accepted')
         write_exp('blaspp', overrides={'5a.blaspp': 'pass', '5a.lapackpp': 'pass'})
-        _, ok = judge(fixed, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(fixed, list(LANES), 'file', srcs, shas, both)
         expect(ok, 'judge: flipped entries rejected')
-        _, ok = judge(base, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(base, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: flipped entry without the fix accepted')
         write_exp('blaspp', overrides={'1-cmake.blaspp': 'xfail:B1'})
-        _, ok = judge(base, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(base, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: xfail on an unowned sub-check accepted')
+        _, ok = quiet_judge(base, list(LANES), 'file', srcs, shas, {'lapackpp'})
+        expect(ok, 'judge: a bad entry in the other fork\'s file is not lenient')
+        exp, _, _ = load_expectations('file', srcs, {'lapackpp'})
+        expect(exp['1-cmake.blaspp'] == 'pass', 'judge: lenient fallback kept an xfail on an unowned sub-check')
         write_exp('blaspp', drop='2.blaspp')
-        _, ok = judge(base, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(base, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: missing entry accepted')
         write_exp('blaspp')
         (srcs['lapackpp'] / EXPECTATIONS).unlink()
-        _, ok = judge(base, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(base, list(LANES), 'file', srcs, shas, both)
         expect(ok, 'judge: bootstrap (no lapackpp file) rejected')
         stale = dict(base)
         stale['2'] = dict(base['2'], blaspp={'sha': 'c' * 40})
-        _, ok = judge(stale, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(stale, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: results for other commits accepted')
         infra = dict(base)
         infra['2'] = dict(base['2'], infra='error: x')
-        _, ok = judge(infra, list(LANES), 'file', srcs, shas)
+        _, ok = quiet_judge(infra, list(LANES), 'file', srcs, shas, both)
         expect(not ok, 'judge: infrastructure failure accepted')
+
+        # Loosening between a pull request's base and head.
+        b, h = Path(tmp) / 'base', Path(tmp) / 'head'
+        for root in (b, h):
+            write_exp('blaspp', root=root)
+            (root / BASELINE_DIR).mkdir(parents=True)
+            (root / BASELINE_DIR / 'x.json').write_text(json.dumps(
+                bl({'a': 'pass', 'k': 'fail'}, {'k': {'exit': 1, 'rows': ['#1 c 5']}})))
+        lo, _ = rules_loosened(b, h)
+        expect(not lo, f'loosen: identical trees flagged: {lo}')
+        write_exp('blaspp', overrides={'5a.blaspp': 'pass'}, root=h)
+        lo, _ = rules_loosened(b, h)
+        expect(not lo, f'loosen: an xfail flipped to pass flagged: {lo}')
+        write_exp('blaspp', root=b, overrides={'5a.blaspp': 'pass'})
+        write_exp('blaspp', root=h)
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: pass -> xfail missed')
+        write_exp('blaspp', root=h, overrides={'5a.blaspp': 'pass'})
+        (h / BASELINE_DIR / 'x.json').write_text(json.dumps(bl({'a': 'fail', 'k': 'fail'}, {
+            'a': {'exit': 1, 'rows': ['#1 s 1']}, 'k': {'exit': 1, 'rows': ['#1 c 5']}})))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: baseline pass -> fail missed')
+        (h / BASELINE_DIR / 'x.json').write_text(json.dumps(
+            bl({'a': 'pass', 'k': 'fail'}, {'k': {'exit': 2, 'rows': ['#1 c 5', '#2 z 9']}})))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: wider known failure missed')
+        (h / BASELINE_DIR / 'x.json').unlink()
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: deleted baseline missed')
     if failures:
         for f in failures:
             print(f'SELFTEST FAILED: {f}')
@@ -1406,6 +1656,8 @@ def main():
         else:
             p.add_argument('--results', required=True)
             p.add_argument('--summary', required=True)
+            p.add_argument('--base-sha', default='')
+            p.add_argument('--rules-label', default='false')
         p.add_argument('--work', required=True)
         p.add_argument('--expect', default='file', choices=['file', 'candidate', 'baseline'])
         for lib in ('blaspp', 'lapackpp'):
@@ -1416,6 +1668,8 @@ def main():
     p.add_argument('--lib', required=True, choices=['blaspp', 'lapackpp'])
     p.add_argument('--dest', required=True)
     p.add_argument('--run-url', required=True)
+    p.add_argument('--accept-failures', action='store_true',
+                   help='record failing routines as known failures')
     sub.add_parser('selftest')
     a = ap.parse_args()
     for stream in (sys.stdout, sys.stderr):

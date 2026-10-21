@@ -3,6 +3,7 @@
  "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39682102757",
  "blaspp": "f84bc922c837bd9728649befaf610799322a1e72",
  "lapackpp": "a7bfdb3bf6e0c56890b04cb9a76369c274f67ce3",
+ "args": null,
  "routines": {
   "gesv [s,d,c,z]": "pass",
   "gesvx [s,d,c,z]": "pass",
@@ -179,5 +180,6 @@
   "langt [s,d,c,z]": "pass",
   "lanht [s,d,c,z]": "pass",
   "lanst [s,d,c,z]": "pass"
- }
+ },
+ "details": {}
 }

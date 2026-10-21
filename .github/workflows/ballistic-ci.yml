@@ -14,16 +14,18 @@ name: ballistic-ci
 on:
   pull_request:
     branches: [main]
+    # labeled/unlabeled: the ci-rules-change label changes the verdict.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
       blaspp_ref:
-        description: BLAS++ commit, full SHA (empty = BallisticLA/blaspp main)
+        description: BLAS++ commit, full SHA (empty = the dispatched commit in the blaspp fork, BallisticLA/blaspp main in the lapackpp fork)
         required: false
         default: ''
       lapackpp_ref:
-        description: LAPACK++ commit, full SHA (empty = BallisticLA/lapackpp main)
+        description: LAPACK++ commit, full SHA (empty = the dispatched commit in the lapackpp fork, BallisticLA/lapackpp main in the blaspp fork)
         required: false
         default: ''
       expect:
@@ -51,6 +53,8 @@ jobs:
       lapackpp_url: ${{ steps.r.outputs.lapackpp_url }}
       lapackpp_sha: ${{ steps.r.outputs.lapackpp_sha }}
       expect: ${{ steps.r.outputs.expect }}
+      base_sha: ${{ steps.r.outputs.base_sha }}
+      rules_label: ${{ steps.r.outputs.rules_label }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -124,7 +128,7 @@ jobs:
 
       - name: conda-forge OpenBLAS (ILP64, symbol suffix 64_)
         if: matrix.conda
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@add3a49764cedee8ee24e82dfde87f5bc2914462  # v2
         with:
           environment-name: blas
           create-args: openblas-ilp64=0.3.34 libopenblas-ilp64=0.3.34
@@ -220,7 +224,7 @@ jobs:
           persist-credentials: false
 
       - name: initialize MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756  # v1
         with:
           arch: x64
 
@@ -344,6 +348,8 @@ jobs:
           --blaspp-sha '${{ needs.resolve.outputs.blaspp_sha }}'
           --lapackpp-url '${{ needs.resolve.outputs.lapackpp_url }}'
           --lapackpp-sha '${{ needs.resolve.outputs.lapackpp_sha }}'
+          --base-sha '${{ needs.resolve.outputs.base_sha }}'
+          --rules-label '${{ needs.resolve.outputs.rules_label }}'
 
       - name: upload summary
         if: always()
