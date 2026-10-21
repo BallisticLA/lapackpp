@@ -137,7 +137,10 @@ fails, the rest pass).
 **Testers.** `expect_tester` is set per sub-check in `ci.py`: required (the
 tester must build, and its results are compared per routine), best effort
 (Windows: run and recorded, never gating, until a recorded run sets the
-expectation), or none (macOS, where Accelerate has no LAPACKE). Per-routine
+expectation), or none (macOS, where Accelerate has no LAPACKE). On Windows the
+testers do not compile with MSVC upstream (testsweeper v2025.05.28 includes
+`<sys/time.h>`, BLAS++'s `test/test.cc` includes `<unistd.h>`), so lanes 8a
+and 8b are build and consumer checks for now. Per-routine
 results are compared with `.github/ballistic-baseline/<sub-check>.json` in the
 fork of the tested library: a routine that passed there must still pass, a new
 routine must pass, and a routine recorded as failing may keep failing. A
@@ -160,6 +163,12 @@ finished and `check expectations` has passed. A patch PR changes its own
 entries from `xfail:<id>` to `pass`; that proves the fix while every other
 sub-check is held to the baseline. After a merge into one fork's `main`, a
 `workflow_dispatch` run on the other fork's `main` confirms the pair.
+
+**First merge (F0).** While a fork's `main` has no F0 yet, runs in the other
+fork find no expectations or baselines for it: they treat it as unmodified
+upstream and require every one of its tester routines to pass. BLAS++'s known
+`rotg` failure therefore fails the LAPACK++ F0 run until BLAS++'s F0 is in
+`main`. Merge BLAS++'s F0 first, then re-run and merge LAPACK++'s.
 
 **Not covered yet.** The CUDA re-configure case (no GPU runners). A
 `lapack_symbol_suffix` re-configure scenario arrives with the L4/L2
