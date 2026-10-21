@@ -242,16 +242,16 @@ jobs:
           $packages = @(
             @{ Id = 'intelmkl.devel.win-x64'; Version = '2026.1.0.226'
                Sha256 = 'd4456ce3c767b235d9c212c093a40cdf073589102dbf70bc0fd2d59140be30d2'
-               Moves = @(@('build\native\win-x64', "$mkl\lib"), @('build\native\include', "$mkl\include")) },
+               Moves = @(@{ From = 'build\native\win-x64'; To = "$mkl\lib" }, @{ From = 'build\native\include'; To = "$mkl\include" }) },
             @{ Id = 'intelmkl.redist.win-x64'; Version = '2026.1.0.226'
                Sha256 = 'ac2d4a14a70b021557170f53460b57038af5ab1977e82a05aca8e4a5af7bcb61'
-               Moves = @(@('runtimes\win-x64\native', "$mkl\bin")) },
+               Moves = @(@{ From = 'runtimes\win-x64\native'; To = "$mkl\bin" }) },
             @{ Id = 'intelopenmp.devel.win'; Version = '2026.1.0.239'
                Sha256 = '3fa832b31d9e6cb0160aabd17c9615df77d9c21aaf79b7dd643f4c0dea376949'
-               Moves = @(@('build\native\win-x64', "$iomp\lib")) },
+               Moves = @(@{ From = 'build\native\win-x64'; To = "$iomp\lib" }) },
             @{ Id = 'intelopenmp.redist.win'; Version = '2026.1.0.239'
                Sha256 = '2a0f9fcdb51d8ac9fa535b67f013fd9341338355679261a39b946ef5e3f399fe'
-               Moves = @(@('runtimes\win-x64\native', "$iomp\bin")) })
+               Moves = @(@{ From = 'runtimes\win-x64\native'; To = "$iomp\bin" }) })
           $ready = (Test-Path "$mkl\lib\mkl_intel_ilp64_dll.lib") -and (Test-Path "$mkl\bin") -and
                    (Test-Path "$iomp\lib\libiomp5md.lib") -and (Test-Path "$iomp\bin\libiomp5md.dll")
           if (-not $ready) {
@@ -267,8 +267,8 @@ jobs:
               $x = Join-Path $root "x-$($p.Id)"
               Expand-Archive -Path $archive -DestinationPath $x -Force
               foreach ($m in $p.Moves) {
-                New-Item -ItemType Directory -Force (Split-Path $m[1] -Parent) | Out-Null
-                Move-Item (Join-Path $x $m[0]) $m[1]
+                New-Item -ItemType Directory -Force (Split-Path $m.To -Parent) | Out-Null
+                Move-Item (Join-Path $x $m.From) $m.To
               }
               Remove-Item -Recurse -Force $x, $archive
             }

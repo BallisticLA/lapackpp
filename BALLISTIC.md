@@ -105,7 +105,7 @@ for BLAS++, `--quick --host` for LAPACK++).
 | Lane | Runner | Configuration | Sub-checks (owner) |
 |---|---|---|---|
 | 1-cmake, 1-make | ubuntu-24.04 | apt OpenBLAS LP64; CMake with `blas=auto`, and make | `.blaspp`, `.lapackpp` |
-| 2 | ubuntu-24.04 | apt `libopenblas64` (ILP64, unsuffixed) | `.blaspp`, `.lapackpp` |
+| 2 | ubuntu-24.04 | apt `libopenblas64` (ILP64, unsuffixed) | `.blaspp`; `.lapackpp` (L2: `-llapacke64`) |
 | 3-cmake, 3-make | ubuntu-24.04 | conda-forge `libopenblas64_`, `blas_symbol_suffix=64_` | `.blaspp`; `.lapackpp` (L2) |
 | 4a, 4b | ubuntu-24.04 | oneMKL ILP64 (Ubuntu `libmkl-dev`) in `BLAS_LIBRARIES`, as (a) a semicolon list and (b) one space-separated string of `-l` flags | `.blaspp`, `.lapackpp` |
 | 5a | ubuntu-24.04 | OpenBLAS copied into a directory `blas dir`, given to BLAS++ as `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` | `.blaspp`, `.lapackpp` (B1) |
@@ -145,6 +145,15 @@ sub-check without a stored baseline needs every routine to pass. Baselines are
 written from a run's artifacts with
 `ci.py baseline --results <dir> --lib <lib> --dest .github/ballistic-baseline --run-url <url>`
 and committed through a fork PR that says why they changed.
+
+**Baseline.** The F0 pull request's first runs on unmodified upstream master
+([BLAS++](https://github.com/BallisticLA/blaspp/actions/runs/39682095446),
+[LAPACK++](https://github.com/BallisticLA/lapackpp/actions/runs/39682102757))
+produced the stored per-routine baselines. Two findings there: `rotg`
+fails for complex types with Ubuntu 24.04's OpenBLAS 0.3.26 (lanes 1-cmake,
+1-make and 2; recorded as a known failure), and upstream LAPACK++ does not
+find LAPACKE for unsuffixed ILP64 OpenBLAS, so lane 2's LAPACK++ tester is
+not built until L2 adds `-llapacke64`.
 
 **Merge rule.** A fork PR is merged only after its `ballistic-ci` run has
 finished and `check expectations` has passed. A patch PR changes its own

@@ -14,7 +14,6 @@
 # Regression checks (no owning patch).
 1-cmake.lapackpp: pass
 1-make.lapackpp: pass
-2.lapackpp: pass
 4a.lapackpp: pass
 4b.lapackpp: pass
 6.lapackpp.identical: pass
@@ -23,11 +22,13 @@
 7b.lapackpp: pass
 7c.lapackpp: pass
 
-# L1 (upstream PR to be opened): LAPACK_LIBRARIES paths with spaces.
+# L1, icl-utk-edu/lapackpp#92: LAPACK_LIBRARIES paths with spaces.
 5b.lapackpp: xfail:L1
 8b.lapackpp: xfail:L1
 
-# L2, icl-utk-edu/lapackpp#91: symbol-suffixed ILP64 OpenBLAS.
+# L2, icl-utk-edu/lapackpp#91: symbol-suffixed ILP64 OpenBLAS, and
+# -llapacke64 for unsuffixed ILP64 OpenBLAS (lane 2).
+2.lapackpp: xfail:L2
 3-cmake.lapackpp: xfail:L2
 3-make.lapackpp: xfail:L2
 

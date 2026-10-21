@@ -60,7 +60,8 @@ LANES = collections.OrderedDict([
     ('1-cmake', ('linux', [('1-cmake.blaspp', None, GATE), ('1-cmake.lapackpp', None, GATE)])),
     ('1-make', ('linux', [('1-make.blaspp', None, GATE), ('1-make.lapackpp', None, GATE)])),
     # 2: apt libopenblas64 (ILP64, unsuffixed symbols).
-    ('2', ('linux', [('2.blaspp', None, GATE), ('2.lapackpp', None, GATE)])),
+    # LAPACK++ needs L2 here too: it adds -llapacke64 to the LAPACKE search.
+    ('2', ('linux', [('2.blaspp', None, GATE), ('2.lapackpp', 'L2', GATE)])),
     # 3: conda-forge libopenblas64_ (ILP64, symbols suffixed 64_); LAPACK++ needs L2.
     ('3-cmake', ('linux', [('3-cmake.blaspp', None, GATE), ('3-cmake.lapackpp', 'L2', GATE)])),
     ('3-make', ('linux', [('3-make.blaspp', None, GATE), ('3-make.lapackpp', 'L2', GATE)])),
@@ -178,11 +179,16 @@ def run(cmd, log, cwd=None, env=None, timeout=3600, echo=False, stdout_path=None
         stream = p.stderr if out else p.stdout
 
         def pump():
+            # Never let a write error stop the reader: the child would then
+            # block on a full pipe until the timeout.
             for raw in iter(stream.readline, b''):
                 line = raw.decode('utf-8', 'replace')
-                f.write(line)
-                if echo:
-                    sys.stdout.write(line)
+                try:
+                    f.write(line)
+                    if echo:
+                        sys.stdout.write(line)
+                except Exception:
+                    pass
             f.flush()
         t = threading.Thread(target=pump)
         t.start()
@@ -298,6 +304,21 @@ def parse_run_tests(stdout_text, xml_text, exit_code, test_cmd):
     return routines, None
 
 
+def failing_blocks(text, test_cmd, limit=60):
+    """The console output of each failed tester command, for the log."""
+    blocks, cur = [], []
+    for line in text.splitlines():
+        if line.startswith(test_cmd + ' '):
+            cur = [line]
+        elif line.startswith('FAILED: exit code'):
+            body = cur[:limit] + (['[...]'] if len(cur) > limit else [])
+            blocks.append('\n'.join(body + [line]))
+            cur = []
+        elif cur:
+            cur.append(line)
+    return '\n\n'.join(blocks)
+
+
 # ------------------------------------------------------------------- lanes
 
 FILES = {
@@ -318,6 +339,9 @@ class Runner:
         self.src = {k: self.work / 'src' / k for k in ('blaspp', 'lapackpp', 'testsweeper')}
         self.env = dict(os.environ)
         self.env.setdefault('OMP_NUM_THREADS', '4')
+        if self.win:
+            # MSVC, not a MinGW or Strawberry Perl g++ that is also on PATH.
+            self.env['CC'], self.env['CXX'] = 'cl', 'cl'
         self.gen = ['-G', 'Ninja'] if shutil.which('ninja') else []
         ldflags = os.environ.get('LDFLAGS', '').strip()
         self.linker = ([f'-DCMAKE_EXE_LINKER_FLAGS={ldflags}', f'-DCMAKE_SHARED_LINKER_FLAGS={ldflags}']
@@ -419,7 +443,8 @@ class Runner:
         if ok:
             ok, note = self.sh(['cmake', '--install', bdir], f'{name}.install', env=env) == 0, 'install failed'
         if not ok:
-            for step in ('install', 'build', 'configure'):
+            # The configure output is already on the console.
+            for step in ('install', 'build'):
                 log = self.logs / f'{name}.{step}.log'
                 if log.exists():
                     print(tail(log, 80))
@@ -559,7 +584,7 @@ class Runner:
         print(f'[{key}] tester: {len(routines)} routines, {len(failed)} failed'
               + (f': {", ".join(failed)}' if failed else '') + (f'; parse error: {err}' if err else ''))
         if failed or err:
-            print(tail(out_txt, 80))
+            print(failing_blocks(text, test_cmd) if failed else tail(out_txt, 80))
         self.endgroup()
         rec['tester'] = {'present': True, 'exit': rc, 'routines': routines, 'parse_error': err}
 
@@ -1248,6 +1273,13 @@ def cmd_selftest(a):
         if not cond:
             failures.append(what)
 
+    def judge(*args):
+        # Keep the deliberate errors of these cases out of the run's annotations.
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            return globals()['judge'](*args)
+
     out = ('Mon\n./tester  --type s,d --dim 100 gemm\nhead\n... pass\npass\n'
            './tester  --type c,z --dim 100 gemm\nFAILED: exit code 1\n'
            './tester  --dim 100 dot\npass\n')
@@ -1386,6 +1418,11 @@ def main():
     p.add_argument('--run-url', required=True)
     sub.add_parser('selftest')
     a = ap.parse_args()
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace', line_buffering=True)
+        except Exception:
+            pass
     {'resolve': cmd_resolve, 'lane': cmd_lane, 'check': cmd_check,
      'baseline': cmd_baseline, 'selftest': cmd_selftest}[a.cmd](a)
 
