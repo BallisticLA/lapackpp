@@ -120,9 +120,10 @@ LANES = collections.OrderedDict([
     ])),
     # 10: a LAPACK whose symbols carry a suffix BLAS++'s BLAS does not:
     # reference BLAS unsuffixed, reference LAPACK with every symbol renamed
-    # <name>x_, LAPACK++ given lapack_symbol_suffix=x_. Needs L2 and its
-    # fork fixup L2F1 (LAPACK_VERSION is probed with the LAPACK suffix).
-    ('10', ('linux', [('10.lapackpp.configure', 'L2F1', NONE), ('10.lapackpp.defines', 'L2F1', NONE)])),
+    # <name>x_, LAPACK++ given lapack_symbol_suffix=x_. L2 finds the suffixed
+    # library (LAPACKFinder probes with the suffix); its fork fixup L2F1 makes
+    # LAPACKConfig's probes, LAPACK_VERSION among them, use it too.
+    ('10', ('linux', [('10.lapackpp.configure', 'L2', NONE), ('10.lapackpp.defines', 'L2F1', NONE)])),
 ])
 
 SUB = collections.OrderedDict()
@@ -532,7 +533,7 @@ class Runner:
             self.cmake_consumer(key, lib, name, [prefix] + list(deps), dll_dirs)
         if tester:
             self.run_tester(key, lib, bdir / 'test', tester_built,
-                            tester_args or (BLASPP_TESTS if lib == 'blaspp' else LAPACKPP_TESTS),
+                            tester_args or (tester_args_of(key) if key in SUB else default_tests(lib)),
                             dll_dirs + self.dll_dirs_under(bdir))
         return prefix
 
@@ -611,7 +612,7 @@ class Runner:
             self.phase(key, 'consumer', ok, '' if ok else 'examples did not build or run', t0)
         if tester:
             self.run_tester(key, lib, src / 'test', tester_built,
-                            BLASPP_TESTS if lib == 'blaspp' else LAPACKPP_TESTS, [])
+                            tester_args_of(key), [])
         return True
 
     # -- checks on the installed result
@@ -982,7 +983,7 @@ def recipe(r):
         # LAPACK_LINUX: without LAPACK_VERSION the gemqrt tester is compiled
         # out and would "pass" without calling gemqrt.
         pre = r.cmake_lib('6b.lapackpp.sanity', 'lapackpp', '6b-lapackpp', ['-DCMAKE_CXX_FLAGS=-D_GLIBCXX_ASSERTIONS'],
-                          deps=[bp], consumer=False, tester_args=['--quick', 'gemqrt'], checks=[LAPACK_LINUX])
+                          deps=[bp], consumer=False, checks=[LAPACK_LINUX])
         zero_dims(r, '6b.lapackpp.zero-dims', pre, r.work / 'build' / '6b-lapackpp' / 'test')
 
     elif lane in ('7a', '7b', '7c'):
@@ -1377,29 +1378,48 @@ def load_expectations(mode, srcs, strict=None):
 
 
 CI_FILES = ('.github/ballistic/ci.py', '.github/workflows/ballistic-ci.yml')
+# Every file under these directories is CI code: adding, removing or changing
+# one needs the label (a module next to ci.py, or a second workflow with a job
+# named like the gate, would change what the gate does).
+CI_DIRS = ('.github/ballistic', '.github/workflows')
 
 
 def rules_loosened(base_src, head_src):
     """Changes from a pull request's base to its head that relax the gate in
-    the fork under test. Returns (loosenings, notes). Counted as relaxing:
-    - a change to the CI code itself (ci.py or the workflow);
+    the fork under test. Returns (loosenings, notes). Counted as relaxing,
+    once the base has F0:
+    - any added, removed or changed file under .github/ballistic/ or
+      .github/workflows/ (the CI code itself);
     - an expectation that leaves `pass` or disappears;
     - a baseline file or routine that disappears; a baseline routine that no
       longer passes, fails in more rows, or prints fewer result rows;
     - a routine added to an existing baseline with a failing result;
     - a new baseline file that records any failing routine, or that misses a
       routine (or its result rows) of the baseline it replaces as reference:
-      REFERENCE[sc] at the base, else 1-cmake.<lib> at the base.
+      REFERENCE[sc] at the base, else 1-cmake.<lib> at the base;
+    - a baseline recorded with other tester arguments than the sub-check's
+      (TESTER_ARGS), or with an invalid result-row count.
     Flipping an xfail to pass, and adding passing routines, tighten the gate."""
     out, notes = [], []
-    for name in CI_FILES:
-        b, h = Path(base_src) / name, Path(head_src) / name
-        if b.exists() and (not h.exists() or b.read_bytes() != h.read_bytes()):
-            out.append(f'{name} changed (the gate\'s own code)')
     bpath, hpath = Path(base_src) / EXPECTATIONS, Path(head_src) / EXPECTATIONS
     if not bpath.exists():
-        notes.append('the base commit has no expectations file; nothing to compare')
+        notes.append('the base commit has no F0 (no expectations file): no gate to relax yet')
         return out, notes
+
+    def ci_files(root):
+        files = {}
+        for d in CI_DIRS:
+            top = Path(root) / d
+            for f in sorted(top.rglob('*')) if top.is_dir() else []:
+                if f.is_file():
+                    files[f.relative_to(root).as_posix()] = f.read_bytes()
+        return files
+
+    bci, hci = ci_files(base_src), ci_files(head_src)
+    for name in sorted(set(bci) | set(hci)):
+        if bci.get(name) != hci.get(name):
+            what = 'added' if name not in bci else 'removed' if name not in hci else 'changed'
+            out.append(f'{name} {what} (CI code: the gate\'s own code)')
     bexp, _ = parse_expectations(bpath.read_text(encoding='utf-8'), 'base')
     hexp, _ = parse_expectations(hpath.read_text(encoding='utf-8') if hpath.exists() else '', 'head')
     for sc, b in bexp.items():
@@ -1423,6 +1443,11 @@ def rules_loosened(base_src, head_src):
             out.append(f'{BASELINE_DIR}/{name} removed')
             continue
         hr, hd = h.get('routines', {}), h.get('details', {})
+        sc = name[:-len('.json')]
+        if sc in SUB and SUB[sc]['tester'] == GATE and h.get('args') != tester_args(sc):
+            out.append(f'{name}: recorded with tester arguments {h.get("args")}, not {tester_args(sc)}')
+        if bad_counts(hd):
+            out.append(f'{name}: invalid result-row counts for {", ".join(bad_counts(hd)[:6])}')
         if b is not None:
             br, bd = b.get('routines', {}), b.get('details', {})
             for k, bv in br.items():
@@ -1449,11 +1474,10 @@ def rules_loosened(base_src, head_src):
         for k, hv in hr.items():
             if hv != 'pass':
                 out.append(f'{name} (new): {k} recorded as {hv}')
-        sc = name[:-len('.json')]
         if sc not in SUB:
             out.append(f'{name} (new): not a sub-check in ci.py')
             continue
-        if h.get('args') not in (None, default_tests(SUB[sc]['lib'])):
+        if tester_args(sc) != default_tests(SUB[sc]['lib']):
             continue
         ref_name = REFERENCE.get(sc, f'1-cmake.{SUB[sc]["lib"]}') + '.json'
         ref = load(base_src, ref_name)
@@ -1479,6 +1503,29 @@ def load_baseline(srcs, sc):
 
 def default_tests(lib):
     return BLASPP_TESTS if lib == 'blaspp' else LAPACKPP_TESTS
+
+
+# run_tests.py arguments of each sub-check that runs a tester; the lanes use
+# these, and a baseline recorded with other arguments is rejected.
+TESTER_ARGS = {'6b.lapackpp.sanity': ['--quick', 'gemqrt']}
+
+
+def tester_args(sc):
+    return list(TESTER_ARGS.get(sc, default_tests(SUB[sc]['lib'])))
+
+
+def tester_args_of(sc):
+    return tester_args(sc)
+
+
+def valid_n(v):
+    """A result-row count: a non-negative int (not a bool, NaN or float)."""
+    return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+
+
+def bad_counts(details):
+    """Routines whose recorded result-row count is not a valid count."""
+    return [k for k, d in (details or {}).items() if 'n' in d and not valid_n(d['n'])]
 
 
 def reference_routines(srcs, sc, args):
@@ -1523,6 +1570,8 @@ def compare_routines(cur, base, details=None, reference=None):
                                 + ', '.join(empty[:8]))
         return problems, notes
     broutines, bdetails = base['routines'], base.get('details', {})
+    if bad_counts(bdetails):
+        problems.append('baseline has invalid result-row counts: ' + ', '.join(bad_counts(bdetails)[:6]))
     for k, b in broutines.items():
         c = cur.get(k)
         bn, cn = rows_of(bdetails, k), rows_of(details, k)
@@ -1585,6 +1634,9 @@ def outcome(sc, rec, srcs):
             if base is None:
                 required = reference_routines(srcs, sc, t.get('args'))
             problems, n = compare_routines(t['routines'], base, t.get('details'), reference=required)
+            if base is not None and base.get('args') is not None and base.get('args') != t.get('args'):
+                problems.append(f'the baseline was recorded with tester arguments {base.get("args")}, '
+                                f'this run used {t.get("args")}')
             if problems and base is None and not (Path(srcs[lib]) / EXPECTATIONS).exists():
                 # That fork's commit is unmodified upstream (no F0): there is no
                 # baseline to hold its known failures to, so record them.
@@ -2083,23 +2135,26 @@ def cmd_selftest(a):
         lo, _ = rules_loosened(b, h)
         expect(lo, 'loosen: deleted baseline missed')
         (h / BASELINE_DIR / 'x.json').write_text((b / BASELINE_DIR / 'x.json').read_text())
-        ref = bl({'gesv [s]': 'pass', 'getrf [s]': 'pass'}, {'gesv [s]': {'n': 4}, 'getrf [s]': {'n': 6}})
+        def bla(r, d=None):
+            return dict(bl(r, d), args=list(LAPACKPP_TESTS))
+
+        ref = bla({'gesv [s]': 'pass', 'getrf [s]': 'pass'}, {'gesv [s]': {'n': 4}, 'getrf [s]': {'n': 6}})
         for root in (b, h):
             (root / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(ref))
         lo, _ = rules_loosened(b, h)
         expect(not lo, f'loosen: unchanged reference flagged: {lo}')
         new = Path(h / BASELINE_DIR / '2.lapackpp.json')
-        new.write_text(json.dumps(bl({'gesv [s]': 'fail', 'getrf [s]': 'pass'},
+        new.write_text(json.dumps(bla({'gesv [s]': 'fail', 'getrf [s]': 'pass'},
                                      {'gesv [s]': {'n': 4, 'exit': 1, 'rows': ['#1 s 1']}, 'getrf [s]': {'n': 6}})))
         lo, _ = rules_loosened(b, h)
         expect(lo, 'loosen: new baseline recording a failure missed (probe A)')
-        new.write_text(json.dumps({'routines': {}, 'details': {}}))
+        new.write_text(json.dumps(dict({'routines': {}, 'details': {}}, args=list(LAPACKPP_TESTS))))
         lo, _ = rules_loosened(b, h)
         expect(lo, 'loosen: new empty baseline missed (probe B)')
-        new.write_text(json.dumps(bl({'gesv [s]': 'pass', 'getrf [s]': 'pass'}, {'gesv [s]': {'n': 0}, 'getrf [s]': {'n': 6}})))
+        new.write_text(json.dumps(bla({'gesv [s]': 'pass', 'getrf [s]': 'pass'}, {'gesv [s]': {'n': 0}, 'getrf [s]': {'n': 6}})))
         lo, _ = rules_loosened(b, h)
         expect(lo, 'loosen: new baseline without result rows missed')
-        new.write_text(json.dumps(bl({'gesv [s]': 'pass', 'getrf [s]': 'pass', 'potrf [s]': 'pass'},
+        new.write_text(json.dumps(bla({'gesv [s]': 'pass', 'getrf [s]': 'pass', 'potrf [s]': 'pass'},
                                      {'gesv [s]': {'n': 4}, 'getrf [s]': {'n': 6}, 'potrf [s]': {'n': 2}})))
         lo, _ = rules_loosened(b, h)
         expect(not lo, f'loosen: new passing baseline covering the reference flagged: {lo}')
@@ -2111,7 +2166,7 @@ def cmd_selftest(a):
         expect(lo, 'loosen: failing routine added to an existing baseline missed (probe C)')
         (h / BASELINE_DIR / 'x.json').write_text((b / BASELINE_DIR / 'x.json').read_text())
         (h / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(
-            bl(ref['routines'], {'gesv [s]': {'n': 0}, 'getrf [s]': {'n': 6}})))
+            bla(ref['routines'], {'gesv [s]': {'n': 0}, 'getrf [s]': {'n': 6}})))
         lo, _ = rules_loosened(b, h)
         expect(lo, 'loosen: baseline result rows dropping missed')
         (b / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(dict(ref, exports={'v': 'a'})))
@@ -2125,6 +2180,54 @@ def cmd_selftest(a):
             (root / CI_FILES[0]).write_text(text)
         lo, _ = rules_loosened(b, h)
         expect(lo, 'loosen: a ci.py change missed (M3)')
+
+        # Review pass 3 probes, on fresh trees with F0.
+        b2, h2 = Path(tmp) / 'b2', Path(tmp) / 'h2'
+        bref = dict(bl({'a [s]': 'pass', 'b [s]': 'pass'}, {'a [s]': {'n': 3}, 'b [s]': {'n': 2}}),
+                    args=list(BLASPP_TESTS))
+        for root in (b2, h2):
+            write_exp('blaspp', root=root)
+            (root / BASELINE_DIR).mkdir(parents=True)
+            (root / BASELINE_DIR / '1-cmake.blaspp.json').write_text(json.dumps(bref))
+            (root / '.github' / 'ballistic').mkdir(parents=True)
+            (root / '.github' / 'ballistic' / 'ci.py').write_text('same')
+        lo, _ = rules_loosened(b2, h2)
+        expect(not lo, f'probe: identical F0 trees flagged: {lo}')
+        p1 = h2 / BASELINE_DIR / '5a.blaspp.json'
+        p1.write_text(json.dumps({'subcheck': '5a.blaspp', 'args': ['--quick'], 'routines': {}, 'details': {}}))
+        lo, _ = rules_loosened(b2, h2)
+        expect(lo, 'probe P1: new empty baseline with non-default args accepted')
+        rec = {'phases': {'build': {'status': 'pass', 'note': ''}},
+               'tester': {'present': True, 'args': list(BLASPP_TESTS), 'routines': {'a [s]': 'pass'},
+                          'details': {'a [s]': {'n': 0}}, 'parse_error': None}}
+        got = outcome('5a.blaspp', rec, {'blaspp': h2, 'lapackpp': Path(tmp) / 'none'})
+        expect(got[0] == 'fail', f'probe P1: a baseline recorded with other tester arguments accepted: {got}')
+        p1.unlink()
+        nan = dict(bref, details={'a [s]': {'n': float('nan')}, 'b [s]': {'n': 2}})
+        (h2 / BASELINE_DIR / '1-cmake.blaspp.json').write_text(json.dumps(nan))
+        lo, _ = rules_loosened(b2, h2)
+        expect(lo, 'probe P2: NaN result-row count accepted')
+        pr, _ = compare_routines({'a [s]': 'pass', 'b [s]': 'pass'}, json.loads(json.dumps(nan)),
+                                 {'a [s]': {'n': 0}, 'b [s]': {'n': 2}})
+        expect(pr, 'probe P2: a NaN baseline row count disabled the row floor')
+        (h2 / BASELINE_DIR / '1-cmake.blaspp.json').write_text(json.dumps(dict(bref, args=['--quick', 'gemm'])))
+        lo, _ = rules_loosened(b2, h2)
+        expect(lo, 'probe P3: changed baseline tester arguments accepted')
+        (h2 / BASELINE_DIR / '1-cmake.blaspp.json').write_text(json.dumps(bref))
+        (h2 / '.github' / 'ballistic' / 'difflib.py').write_text('# planted')
+        lo, _ = rules_loosened(b2, h2)
+        expect(lo, 'probe P4: a new module next to ci.py accepted')
+        (h2 / '.github' / 'ballistic' / 'difflib.py').unlink()
+        (h2 / '.github' / 'workflows').mkdir(parents=True)
+        (h2 / '.github' / 'workflows' / 'other.yml').write_text('jobs: {x: {name: check expectations}}')
+        lo, _ = rules_loosened(b2, h2)
+        expect(lo, 'probe P4: a new workflow accepted')
+        (h2 / '.github' / 'workflows' / 'other.yml').unlink()
+        (h2 / EXPECTATIONS).write_text((h2 / EXPECTATIONS).read_text() + '1-cmake.blaspp: xfail:B1\n')
+        lo, _ = rules_loosened(b2, h2)
+        expect(lo, 'probe P5: a duplicate expectation line that relaxes accepted')
+        _, errs, _ = load_expectations('file', {'blaspp': h2, 'lapackpp': Path(tmp) / 'none'}, {'blaspp'})
+        expect(errs, 'probe P5: a duplicate expectation line raised no error')
     if failures:
         for f in failures:
             print(f'SELFTEST FAILED: {f}')

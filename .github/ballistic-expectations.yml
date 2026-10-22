@@ -36,6 +36,7 @@
 2.lapackpp: xfail:L2
 3-cmake.lapackpp: xfail:L2
 3-make.lapackpp: xfail:L2
+10.lapackpp.configure: xfail:L2
 
 # L3 (upstream PR to be opened): gemqrt with m = 0 or n = 0.
 6b.lapackpp.zero-dims: xfail:L3
@@ -45,6 +46,6 @@
 6.lapackpp.failed-then-fixed: xfail:L4
 6.lapackpp.findlapack-blaspp-swap: xfail:L4
 
-# L2F1, fork-only fixup of L2: LAPACK suffix different from BLAS++'s.
-10.lapackpp.configure: xfail:L2F1
+# L2F1, fork-only fixup of L2: LAPACKConfig probes with a LAPACK suffix
+# different from BLAS++'s.
 10.lapackpp.defines: xfail:L2F1

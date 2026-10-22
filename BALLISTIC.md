@@ -138,7 +138,7 @@ one both libraries name); make builds use the same checkout.
 | 8a | windows-2022 | MSVC; oneMKL ILP64 from Intel's NuGet packages (pinned; SHA256-checked when downloaded, then cached), import libraries copied into a directory `intel mkl`, given to BLAS++ as `BLAS_LIBRARIES` | `.blaspp`, `.lapackpp` (B1) |
 | 8b | windows-2022 | the same libraries at a path without spaces; LAPACK++ found in them, and LAPACK++ given the spaced copies as `LAPACK_LIBRARIES` | `.blaspp`, `.lapackpp`; `.lapackpp.spaced` (L1) |
 | 9 | ubuntu-24.04 | apt OpenBLAS; `LAPACK_LIBRARIES` for both libraries as an absolute path plus a flag in one space-separated string, and as bare names (`openblas m`); a re-configure re-passing the same value must not search for LAPACK again | `.blaspp.space-path`, `.lapackpp.space-path`, `.blaspp.bare-names`, `.lapackpp.bare-names`, `.blaspp.rerun`, `.lapackpp.rerun`; `.blaspp.rerun-identical` (B2a) |
-| 10 | ubuntu-24.04 | reference BLAS (unsuffixed) for BLAS++, with only the reference LAPACK routines it needs; LAPACK++ given the reference LAPACK with every symbol renamed `<name>x_` and `lapack_symbol_suffix=x_` (static builds) | `.lapackpp.configure`, `.lapackpp.defines` (L2F1) |
+| 10 | ubuntu-24.04 | reference BLAS (unsuffixed) for BLAS++, with only the reference LAPACK routines it needs; LAPACK++ given the reference LAPACK with every symbol renamed `<name>x_` and `lapack_symbol_suffix=x_` (static builds) | `.lapackpp.configure` (L2: the suffixed library is found); `.lapackpp.defines` (L2F1: `LAPACK_VERSION`) |
 
 Lane 6 scenarios: `identical` re-runs the same configure (BLAS++ also builds
 LAPACK++ against the re-configured install); `fortran` changes `blas_fortran`;
@@ -206,9 +206,15 @@ Each of these fails the check unless the PR carries the label
 - a new baseline file that records any failing routine, or that lacks a
   routine (or its result rows) of the baseline the gate used for it until
   then (its lane-5 reference, else `1-cmake.<lib>`);
-- any change to `ci.py` or the workflow. This one is an acknowledgement step,
-  not a barrier: the pull request's own `ci.py` runs the check, so a reviewer
-  must read that diff.
+- a baseline recorded with tester arguments other than the sub-check's
+  (`TESTER_ARGS` in `ci.py`), or with a result-row count that is not a
+  non-negative integer; the check also rejects a baseline whose arguments
+  differ from the run's;
+- any added, removed or changed file under `.github/ballistic/` or
+  `.github/workflows/` (once `main` has F0). This one is an acknowledgement
+  step, not a barrier: the pull request's own `ci.py` runs the check, so a
+  reviewer must read that diff. The workflow runs `ci.py` with `python -I`,
+  so a module placed next to it cannot shadow the standard library.
 
 **Baseline.** The F0 pull request's first runs on unmodified upstream master
 ([BLAS++](https://github.com/BallisticLA/blaspp/actions/runs/39682095446),
@@ -229,14 +235,21 @@ entries from `xfail:<id>` to `pass`; that proves the fix while every other
 sub-check is held to the baseline. After a merge into one fork's `main`, a
 `workflow_dispatch` run on the other fork's `main` confirms the pair. A run
 re-used with "Re-run failed jobs" keeps its resolved commits; use "Re-run all
-jobs" to pick up the other fork's new `main`.
+jobs" to pick up the other fork's new `main`. Re-run any open pull request
+whose run started before a merge in the other fork, before merging it: its
+result was computed against the other fork's earlier `main`. The Phase 5
+candidate-pair dispatch with `expect=candidate` is the backstop for entries
+left unflipped. A dispatch run (such as the rebuild check) has no pull
+request base, so it does not run the relaxing check.
 
 **First merge (F0).** While a fork's `main` has no F0 yet, runs in the other
 fork find no expectations or baselines for it. They treat that commit as
 unmodified upstream: its owned sub-checks must fail and the rest pass, and its
 tester routine failures are recorded as notes, since there is no baseline to
 hold them to (BLAS++'s known `rotg` failure shows up this way in LAPACK++'s
-F0 run). Either F0 can be merged first.
+F0 run). Either F0 can be merged first; after it merges, "Re-run all jobs" on
+the other F0 pull request before merging it, so it is checked against the
+merged F0.
 
 **Known limitations.**
 - An `xfail` is met by any failure of its sub-check, including a blocked

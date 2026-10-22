@@ -60,14 +60,14 @@ jobs:
         with:
           persist-credentials: false
       - name: checker self-test
-        run: python3 .github/ballistic/ci.py selftest
+        run: python3 -I .github/ballistic/ci.py selftest
       - id: r
         name: resolve
         env:
           INPUT_BLASPP_REF: ${{ inputs.blaspp_ref }}
           INPUT_LAPACKPP_REF: ${{ inputs.lapackpp_ref }}
           INPUT_EXPECT: ${{ inputs.expect }}
-        run: python3 .github/ballistic/ci.py resolve
+        run: python3 -I .github/ballistic/ci.py resolve
 
   linux:
     name: lane ${{ matrix.lane }}
@@ -160,7 +160,7 @@ jobs:
 
       - name: lane ${{ matrix.lane }}
         run: >
-          python3 .github/ballistic/ci.py lane '${{ matrix.lane }}'
+          python3 -I .github/ballistic/ci.py lane '${{ matrix.lane }}'
           --work "$RUNNER_TEMP/bci" --out "$RUNNER_TEMP/out" --expect "$BCI_EXPECT"
           --blaspp-url "$BCI_BLASPP_URL" --blaspp-sha "$BCI_BLASPP_SHA"
           --lapackpp-url "$BCI_LAPACKPP_URL" --lapackpp-sha "$BCI_LAPACKPP_SHA"
@@ -195,7 +195,7 @@ jobs:
 
       - name: lane ${{ matrix.lane }}
         run: >
-          python3 .github/ballistic/ci.py lane '${{ matrix.lane }}'
+          python3 -I .github/ballistic/ci.py lane '${{ matrix.lane }}'
           --work "$RUNNER_TEMP/bci" --out "$RUNNER_TEMP/out" --expect "$BCI_EXPECT"
           --blaspp-url "$BCI_BLASPP_URL" --blaspp-sha "$BCI_BLASPP_SHA"
           --lapackpp-url "$BCI_LAPACKPP_URL" --lapackpp-sha "$BCI_LAPACKPP_SHA"
@@ -307,7 +307,7 @@ jobs:
 
       - name: lane ${{ matrix.lane }}
         run: |
-          python .github/ballistic/ci.py lane '${{ matrix.lane }}' `
+          python -I .github/ballistic/ci.py lane '${{ matrix.lane }}' `
             --work "$env:RUNNER_TEMP\bci" --out "$env:RUNNER_TEMP\out" --expect "$env:BCI_EXPECT" `
             --blaspp-url "$env:BCI_BLASPP_URL" --blaspp-sha "$env:BCI_BLASPP_SHA" `
             --lapackpp-url "$env:BCI_LAPACKPP_URL" --lapackpp-sha "$env:BCI_LAPACKPP_SHA"
@@ -349,11 +349,11 @@ jobs:
           path: ${{ runner.temp }}/results
 
       - name: checker self-test
-        run: python3 .github/ballistic/ci.py selftest
+        run: python3 -I .github/ballistic/ci.py selftest
 
       - name: check every lane against its expectations
         run: >
-          python3 .github/ballistic/ci.py check
+          python3 -I .github/ballistic/ci.py check
           --results "$RUNNER_TEMP/results" --summary "$RUNNER_TEMP/summary.json"
           --work "$RUNNER_TEMP/bci" --expect '${{ needs.resolve.outputs.expect }}'
           --blaspp-url '${{ needs.resolve.outputs.blaspp_url }}'
