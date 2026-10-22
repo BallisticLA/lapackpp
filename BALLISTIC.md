@@ -148,9 +148,10 @@ configure failed; `option` changes LAPACK++'s `lapack` option;
 `lapack-generic` configures BLAS++ with `lapack=generic` (a separate
 `-llapack`) and re-configures it three times, the exported `blaspp_libraries`
 matching a fresh configure after every run; `findlapack-blaspp-swap`
-configures LAPACK++ on CMake's FindLAPACK path (`BLA_VENDOR=OpenBLAS`), then
-re-installs BLAS++ into the same prefix as ILP64 (`libopenblas64`) and
-re-configures LAPACK++, which must match a fresh configure. Lane 6b runs
+configures LAPACK++ on CMake's FindLAPACK path (`BLA_VENDOR=OpenBLAS`)
+against an ILP64 BLAS++ (`libopenblas64`), then re-installs BLAS++ into the
+same prefix as LP64 and re-configures LAPACK++, which must match a fresh
+configure (with `LAPACK_VERSION` and `LAPACK_HAVE_LAPACKE`). Lane 6b runs
 `gemqrt` with m = 0 (side R) and n = 0 (side L), where the workspace is empty,
 and requires printed passing results. Upstream's tester also takes `&C[0]` of
 its empty C when n = 0, so the side-L runs pass only with L3's tester change

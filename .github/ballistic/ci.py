@@ -1247,10 +1247,11 @@ def lane6(r):
     r.reconfigure('6.blaspp.lapack-generic', 'blaspp', [(generic, 'ok')] * 4, generic,
                   only=('blaspp_libraries',))
 
-    # LAPACK++ on CMake's FindLAPACK path, configured against one BLAS++
-    # install; BLAS++ is then re-installed into the same prefix with other
-    # defines (ILP64); LAPACK++'s re-configure must match a fresh configure
-    # against the new install.
+    # LAPACK++ on CMake's FindLAPACK path (BLA_VENDOR=OpenBLAS finds the LP64
+    # libopenblas), configured against an ILP64 BLAS++ install
+    # (libopenblas64, named explicitly: an LP64 library passes BLASFinder's
+    # ILP64 probe); BLAS++ is then re-installed into the same prefix as LP64,
+    # and LAPACK++'s re-configure must match a fresh configure against it.
     swap = r.work / 'install' / '6-swap-blaspp'
     shutil.rmtree(swap, ignore_errors=True)
 
@@ -1266,14 +1267,14 @@ def lane6(r):
                 return f'BLAS++ install {name} failed'
         return None
 
-    first = install_blaspp('blaspp-int32', blas)
+    first = install_blaspp('blaspp-int64', ['-DBLAS_LIBRARIES=-lopenblas64', '-Dblas_int=int64'])
     if first:
         r.blocked('6.lapackpp.findlapack-blaspp-swap', ['reconfigure'], first)
     else:
         found = ['-DBLA_VENDOR=OpenBLAS']
         r.reconfigure('6.lapackpp.findlapack-blaspp-swap', 'lapackpp',
-                      [(found, 'ok'), lambda: install_blaspp('blaspp-int64', ['-Dblas=openblas', '-Dblas_int=int64']),
-                       (found, 'ok')], found, deps=[swap], defines=['LAPACK_VERSION'])
+                      [(found, 'ok'), lambda: install_blaspp('blaspp-int32', blas), (found, 'ok')], found,
+                      deps=[swap], defines=['LAPACK_VERSION', 'LAPACK_HAVE_LAPACKE'])
 
 
 def copy_openblas(dest):
