@@ -6,7 +6,8 @@
 # Check if this file has already been run with these settings (see bottom).
 if (DEFINED lapack_config_cache
     AND DEFINED lapack_config_defs_cache
-    AND "${lapack_config_cache}" STREQUAL "${LAPACK_LIBRARIES}")
+    AND "${lapack_config_cache}" STREQUAL "${LAPACK_LIBRARIES}"
+    AND "${lapack_config_symbol_suffix_cache}" STREQUAL "${lapack_symbol_suffix}")
 
     message( DEBUG "LAPACK config already done for '${LAPACK_LIBRARIES}'" )
     # Restore defines found in the previous run (see bottom).
@@ -15,6 +16,13 @@ if (DEFINED lapack_config_cache
 endif()
 
 include( "cmake/util.cmake" )
+
+# The probes below also need the LAPACK symbol suffix. Set it here rather
+# than reuse LAPACKFinder's, since LAPACKFinder can skip its search.
+set( lapack_symbol_suffix_def "" )
+if (lapack_symbol_suffix)
+    set( lapack_symbol_suffix_def "-DLAPACK_FORTRAN_SUFFIX=${lapack_symbol_suffix}" )
+endif()
 
 # Clear results of a previous run.
 unset( lapacke_found     CACHE )
@@ -33,7 +41,7 @@ try_run(
     LINK_LIBRARIES
         ${LAPACK_LIBRARIES} ${blaspp_libraries}
     COMPILE_DEFINITIONS
-        ${blaspp_defines}
+        ${blaspp_defines} ${lapack_symbol_suffix_def}
     COMPILE_OUTPUT_VARIABLE
         compile_output
     RUN_OUTPUT_VARIABLE
@@ -63,7 +71,7 @@ try_run(
     LINK_LIBRARIES
         ${LAPACK_LIBRARIES} ${blaspp_libraries}
     COMPILE_DEFINITIONS
-        ${blaspp_defines}
+        ${blaspp_defines} ${lapack_symbol_suffix_def}
     COMPILE_OUTPUT_VARIABLE
         compile_output
     RUN_OUTPUT_VARIABLE
@@ -101,7 +109,7 @@ foreach (lib IN LISTS lib_list)
         LINK_LIBRARIES
             ${lib} ${LAPACK_LIBRARIES} ${blaspp_libraries}
         COMPILE_DEFINITIONS
-            ${blaspp_defines}
+            ${blaspp_defines} ${lapack_symbol_suffix_def}
         COMPILE_OUTPUT_VARIABLE
             compile_output
         RUN_OUTPUT_VARIABLE
@@ -138,6 +146,7 @@ set( lapack_config_defs_cache "${defs_}" CACHE INTERNAL "" )
 
 # Mark as already run (see top).
 set( lapack_config_cache "${LAPACK_LIBRARIES}" CACHE INTERNAL "" )
+set( lapack_config_symbol_suffix_cache "${lapack_symbol_suffix}" CACHE INTERNAL "" )
 
 #-------------------------------------------------------------------------------
 message( DEBUG "
