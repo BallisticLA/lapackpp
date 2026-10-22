@@ -27,7 +27,7 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 
 | ID | Upstream | Head | Tree | Fork PR | State |
 |---|---|---|---|---|---|
-| L1 | [#92](https://github.com/icl-utk-edu/lapackpp/pull/92): `LAPACK_LIBRARIES` paths with spaces (the LAPACK++ half of blaspp#137) | `720217022faf38945ab76eb43beb0f5b7e660da2` | `90e189db53eb3239f76f4c49ddf855b21df2c664` | - | pending |
+| L1 | [#92](https://github.com/icl-utk-edu/lapackpp/pull/92): `LAPACK_LIBRARIES` paths with spaces, with the same normalization as B1 | `2e8bef5c6ac1b152f3fa4682b21c36ef4cf912ca` | `96acce118c01b6c270eb6acd36cb8f60e35ba57d` | carry/l1 | carried |
 | L2 | [#91](https://github.com/icl-utk-edu/lapackpp/pull/91) (Riley Murray): `lapack_symbol_suffix` for symbol-suffixed ILP64 OpenBLAS | `1f85c68ec3bdfc7be4d6f72daa4443c764f1da5a` | `239f3e7189e366fbc1cc65416fb30eb74478bacf` | - | pending |
 | L3 | PR to be opened: `gemqrt` with m = 0 or n = 0 takes `&work[0]` of an empty `std::vector` | - | - | - | pending |
 | L4 | PR to be opened: a re-configure drops `LAPACK_VERSION`, `LAPACK_HAVE_LAPACKE` and other defines | - | - | - | pending |
