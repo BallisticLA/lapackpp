@@ -1058,11 +1058,16 @@ def lapack_suffix_lane(r):
     needed = ['dpstrf_', 'crot_', 'zrot_', 'csymv_', 'zsymv_', 'csyr_', 'zsyr_']
     (work / 'probe.c').write_text(''.join(f'extern void {n}(void);\n' for n in needed)
                                   + 'int main(void) {\n' + ''.join(f'    {n}();\n' for n in needed) + '    return 0;\n}\n')
-    trace = subprocess.run(['gcc', str(work / 'probe.c'), '-o', str(work / 'probe'), '-Wl,--trace', lapack_a,
-                            blas_so, '-lgfortran', '-lm'], capture_output=True, text=True)
-    members = sorted(set(re.findall(re.escape(lapack_a) + r'\((\S+\.o)\)', trace.stdout + trace.stderr)))
+    # The link map lists every archive member the link pulled in, as
+    # "<archive>(<member>)".
+    trace = subprocess.run(['gcc', str(work / 'probe.c'), '-o', str(work / 'probe'),
+                            f'-Wl,-Map={work / "probe.map"}', lapack_a, blas_so, '-lgfortran', '-lm'],
+                           capture_output=True, text=True)
+    linkmap = (work / 'probe.map').read_text(errors='replace') if (work / 'probe.map').exists() else ''
+    members = sorted(set(re.findall(re.escape(lapack_a) + r'\((\S+?\.o)\)', linkmap)))
     if trace.returncode != 0 or not members:
-        raise RuntimeError(f'cannot pick the LAPACK members BLAS++ needs: {trace.stderr[-500:]}')
+        raise RuntimeError(f'cannot pick the LAPACK members BLAS++ needs (link exit {trace.returncode}): '
+                           f'{trace.stderr[-500:]}')
     run(['ar', 'x', lapack_a, *members], log, cwd=work / 'min')
     minimal = work / 'liblapack_min.a'
     run(['ar', 'rcs', minimal, *members], log, cwd=work / 'min')
