@@ -39,7 +39,7 @@
 10.lapackpp.configure: xfail:L2
 
 # L3 (upstream PR to be opened): gemqrt with m = 0 or n = 0.
-6b.lapackpp.zero-dims: xfail:L3
+6b.lapackpp.zero-dims: pass
 
 # L4 (upstream PR to be opened): a re-configure drops LAPACK++ defines.
 6.lapackpp.option: xfail:L4
