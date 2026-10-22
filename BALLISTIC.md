@@ -131,7 +131,7 @@ one both libraries name); make builds use the same checkout.
 | 4a, 4b | ubuntu-24.04 | oneMKL ILP64 (Ubuntu `libmkl-dev`) as `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` of both libraries, (a) as a semicolon list and (b) as one space-separated string of `-l` flags; the exported `<lib>_libraries` and `<lib>_defines` must keep their baseline form | `.blaspp`, `.lapackpp` |
 | 5a | ubuntu-24.04 | OpenBLAS copied into a directory `blas dir`, given to BLAS++ as `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` | `.blaspp`, `.lapackpp` (B1) |
 | 5b | ubuntu-24.04 | the same copy, given to LAPACK++ as `LAPACK_LIBRARIES` | `.lapackpp` (L1) |
-| 6 | ubuntu-24.04 | re-configure an existing build tree, then byte-compare `defines.h` and `<lib>Config.cmake` with a fresh configure, whose `defines.h` must hold the expected defines | `.blaspp.identical` (B2a); `.blaspp.fortran`, `.blaspp.suffix`, `.blaspp.failed-then-fixed` (B2b); `.lapackpp.identical`; `.lapackpp.option`, `.lapackpp.failed-then-fixed` (L4) |
+| 6 | ubuntu-24.04 | re-configure an existing build tree, then byte-compare `defines.h` and `<lib>Config.cmake` with a fresh configure, whose `defines.h` must hold the expected defines | `.blaspp.identical` (B2a); `.blaspp.fortran`, `.blaspp.suffix`, `.blaspp.failed-then-fixed` (B2b); `.blaspp.lapack-generic` (B1); `.lapackpp.identical`; `.lapackpp.option`, `.lapackpp.failed-then-fixed`, `.lapackpp.findlapack-blaspp-swap` (L4) |
 | 6b | ubuntu-24.04 | LAPACK++ built with `-D_GLIBCXX_ASSERTIONS` | `.lapackpp.sanity`; `.lapackpp.zero-dims` (L3) |
 | 7a, 7b | macos-15 | new Accelerate, LP64 and ILP64. No LAPACKE, so build and consumer only | `.blaspp`, `.lapackpp` |
 | 7c | macos-15 | `LAPACK_LIBRARIES="-framework Accelerate"` for LAPACK++, and the CMake list `-framework;Accelerate` for both libraries; build and consumer only | `.lapackpp`, `.blaspp.list`, `.lapackpp.list` |
@@ -144,7 +144,13 @@ Lane 6 scenarios: `identical` re-runs the same configure (BLAS++ also builds
 LAPACK++ against the re-configured install); `fortran` changes `blas_fortran`;
 `suffix` adds `blas_symbol_suffix=64_` after a configure without it failed;
 `failed-then-fixed` names a library that appears only after the first
-configure failed; `option` changes LAPACK++'s `lapack` option. Lane 6b runs
+configure failed; `option` changes LAPACK++'s `lapack` option;
+`lapack-generic` configures BLAS++ with `lapack=generic` (a separate
+`-llapack`) and re-configures it three times, the exported `blaspp_libraries`
+matching a fresh configure after every run; `findlapack-blaspp-swap`
+configures LAPACK++ on CMake's FindLAPACK path (`BLA_VENDOR=OpenBLAS`), then
+re-installs BLAS++ into the same prefix as ILP64 (`libopenblas64`) and
+re-configures LAPACK++, which must match a fresh configure. Lane 6b runs
 `gemqrt` with m = 0 (side R) and n = 0 (side L), where the workspace is empty,
 and requires printed passing results. Upstream's tester also takes `&C[0]` of
 its empty C when n = 0, so the side-L runs pass only with L3's tester change

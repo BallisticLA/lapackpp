@@ -88,6 +88,8 @@ LANES = collections.OrderedDict([
         ('6.lapackpp.identical', None, NONE),
         ('6.lapackpp.option', 'L4', NONE),
         ('6.lapackpp.failed-then-fixed', 'L4', NONE),
+        ('6.blaspp.lapack-generic', 'B1', NONE),
+        ('6.lapackpp.findlapack-blaspp-swap', 'L4', NONE),
     ])),
     # 6b: LAPACK++ built with -D_GLIBCXX_ASSERTIONS; gemqrt with m = 0 and n = 0.
     ('6b', ('linux', [('6b.lapackpp.sanity', None, GATE), ('6b.lapackpp.zero-dims', 'L3', NONE)])),
@@ -677,7 +679,8 @@ class Runner:
                     tb.splitlines(True), ta.splitlines(True), f'fresh/{rel}', f're-configured/{rel}')))
         return diffs
 
-    def reconfigure(self, key, lib, steps, final, deps=(), env=None, after=None, defines=(), compare=True):
+    def reconfigure(self, key, lib, steps, final, deps=(), env=None, after=None, defines=(), compare=True,
+                    only=None):
         """Run the configure steps in one build tree (each step: (args, 'ok' |
         'fail') or a callable), then compare defines.h and <lib>Config.cmake
         with a fresh configure using `final`. The fresh tree's defines.h must
@@ -700,7 +703,10 @@ class Runner:
         t0, ok, note, i = time.time(), True, '', 0
         for step in steps:
             if callable(step):
-                step()
+                problem = step()
+                if problem:
+                    ok, note = False, problem
+                    break
                 continue
             args, want, check_output = (tuple(step) + (None,))[:3]
             log = self.logs / f'{key}.step{i}.log'
@@ -740,7 +746,18 @@ class Runner:
                 r'#define\s+' + (re.escape(d[:-1]) if d.endswith('*') else re.escape(d) + r'\b'), text)]
             self.phase(key, 'fresh-defines', not lacking,
                        'fresh defines.h lacks ' + ', '.join(lacking) if lacking else '')
-            diffs = self.compare(lib, tree, fresh)
+            if only:
+                # Compare just these exported variables, after every step.
+                cfg = Path(FILES[lib][1]).name
+                want = config_vars(fresh / FILES[lib][1], only, self.work)
+                diffs = []
+                for d in sorted(p for p in snaps.glob('step*') if p.is_dir()):
+                    got = config_vars(d / cfg, only, self.work)
+                    if got != want:
+                        diffs.append(f'{d.name}: {got} != fresh {want}')
+                diffs = [f'{FILES[lib][1]}: ' + x for x in diffs]
+            else:
+                diffs = self.compare(lib, tree, fresh)
             if diffs:
                 (snaps / 'diff.txt').write_text('\n'.join(diffs), encoding='utf-8')
                 print('\n'.join(diffs))
@@ -841,6 +858,17 @@ def exports_of(lib, prefix, work):
     for var in (f'{lib}_libraries', f'{lib}_defines'):
         m = re.search(r'set\(\s*' + re.escape(var) + r'\s+"([^"]*)"', text)
         out[var] = m.group(1).replace(str(work).replace('\\', '/'), '<WORK>').replace(str(work), '<WORK>') if m else None
+    return out
+
+
+def config_vars(path, names, work):
+    """{name: value} of `set( name "value" )` lines in a <lib>Config.cmake."""
+    path = Path(path)
+    text = path.read_text(encoding='utf-8', errors='replace') if path.exists() else ''
+    out = {}
+    for var in names:
+        m = re.search(r'set\(\s*' + re.escape(var) + r'\s+"([^"]*)"', text)
+        out[var] = m.group(1).replace(str(work), '<WORK>') if m else None
     return out
 
 
@@ -1211,6 +1239,41 @@ def lane6(r):
     r.reconfigure('6.lapackpp.failed-then-fixed', 'lapackpp',
                   [(late_lapack, 'fail'), lambda: copy_openblas(late2), (late_lapack, 'ok')], late_lapack,
                   deps=[bp], defines=lgood)
+
+    # BLAS++ with LAPACK as a separate -llapack (lapack=generic), configured and
+    # then re-configured three times unchanged: the exported blaspp_libraries
+    # must match a fresh configure after every run.
+    generic = blas + ['-Dlapack=generic']
+    r.reconfigure('6.blaspp.lapack-generic', 'blaspp', [(generic, 'ok')] * 4, generic,
+                  only=('blaspp_libraries',))
+
+    # LAPACK++ on CMake's FindLAPACK path, configured against one BLAS++
+    # install; BLAS++ is then re-installed into the same prefix with other
+    # defines (ILP64); LAPACK++'s re-configure must match a fresh configure
+    # against the new install.
+    swap = r.work / 'install' / '6-swap-blaspp'
+    shutil.rmtree(swap, ignore_errors=True)
+
+    def install_blaspp(name, args):
+        tree = r.work / 'build' / name
+        shutil.rmtree(tree, ignore_errors=True)
+        cmds = [['cmake', '-S', r.src['blaspp'], '-B', tree, *r.gen, '-DCMAKE_BUILD_TYPE=Release', '-Dcolor=no',
+                 '-Dbuild_tests=no', '-Dgpu_backend=none', f'-DCMAKE_INSTALL_PREFIX={swap}', *args],
+                ['cmake', '--build', tree, '--target', 'blaspp', '--parallel', r.jobs],
+                ['cmake', '--install', tree]]
+        for c in cmds:
+            if r.sh(c, f'6.lapackpp.findlapack-blaspp-swap.{name}', echo=c[1] == '-S') != 0:
+                return f'BLAS++ install {name} failed'
+        return None
+
+    first = install_blaspp('blaspp-int32', blas)
+    if first:
+        r.blocked('6.lapackpp.findlapack-blaspp-swap', ['reconfigure'], first)
+    else:
+        found = ['-DBLA_VENDOR=OpenBLAS']
+        r.reconfigure('6.lapackpp.findlapack-blaspp-swap', 'lapackpp',
+                      [(found, 'ok'), lambda: install_blaspp('blaspp-int64', ['-Dblas=openblas', '-Dblas_int=int64']),
+                       (found, 'ok')], found, deps=[swap], defines=['LAPACK_VERSION'])
 
 
 def copy_openblas(dest):

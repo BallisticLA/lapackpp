@@ -87,7 +87,7 @@ jobs:
           - { lane: 4b, apt: libmkl-dev, cpath: mkl }
           - { lane: 5a, apt: libopenblas-dev liblapacke-dev }
           - { lane: 5b, apt: libopenblas-dev liblapacke-dev }
-          - { lane: '6', apt: libopenblas-dev liblapacke-dev, conda: local }
+          - { lane: '6', apt: libopenblas-dev libopenblas64-dev liblapacke-dev, conda: local }
           - { lane: 6b, apt: libopenblas-dev liblapacke-dev }
           - { lane: '9', apt: libopenblas-dev liblapacke-dev }
           - { lane: '10', apt: libblas-dev liblapack-dev gfortran }
