@@ -3,16 +3,25 @@
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the BSD 3-Clause license. See the accompanying LICENSE file.
 
-# Check if this file has already been run with these settings.
+# Check if this file has already been run with these settings (see bottom).
 if (DEFINED lapack_config_cache
+    AND DEFINED lapack_config_defs_cache
     AND "${lapack_config_cache}" STREQUAL "${LAPACK_LIBRARIES}")
 
     message( DEBUG "LAPACK config already done for '${LAPACK_LIBRARIES}'" )
+    # Restore defines found in the previous run (see bottom).
+    list( APPEND lapackpp_defs_ ${lapack_config_defs_cache} )
     return()
 endif()
-set( lapack_config_cache "${LAPACK_LIBRARIES}" CACHE INTERNAL "" )
 
 include( "cmake/util.cmake" )
+
+# Clear results of a previous run.
+unset( lapacke_found     CACHE )
+unset( lapacke_libraries CACHE )
+
+# Defines found here are appended to lapackpp_defs_ after this index.
+list( LENGTH lapackpp_defs_ defs_begin_ )
 
 #-------------------------------------------------------------------------------
 message( STATUS "Checking LAPACK version" )
@@ -113,6 +122,17 @@ if (lapacke_found)
 else()
     message( "${red}   LAPACKE library not found. Tester cannot be built.${plain}" )
 endif()
+
+# Save defines found here, to restore when skipped (see top).
+set( defs_ "" )
+list( LENGTH lapackpp_defs_ defs_end_ )
+if (defs_end_ GREATER defs_begin_)
+    list( SUBLIST lapackpp_defs_ ${defs_begin_} -1 defs_ )
+endif()
+set( lapack_config_defs_cache "${defs_}" CACHE INTERNAL "" )
+
+# Mark as already run (see top).
+set( lapack_config_cache "${LAPACK_LIBRARIES}" CACHE INTERNAL "" )
 
 #-------------------------------------------------------------------------------
 message( DEBUG "
