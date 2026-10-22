@@ -28,8 +28,8 @@
 9.lapackpp.rerun: pass
 
 # L1, icl-utk-edu/lapackpp#92: LAPACK_LIBRARIES paths with spaces.
-5b.lapackpp: xfail:L1
-8b.lapackpp.spaced: xfail:L1
+5b.lapackpp: pass
+8b.lapackpp.spaced: pass
 
 # L2, icl-utk-edu/lapackpp#91: symbol-suffixed ILP64 OpenBLAS, and
 # -llapacke64 for unsuffixed ILP64 OpenBLAS (lane 2).

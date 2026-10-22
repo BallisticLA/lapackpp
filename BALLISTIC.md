@@ -27,7 +27,7 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 
 | ID | Upstream | Head | Tree | Fork PR | State |
 |---|---|---|---|---|---|
-| L1 | [#92](https://github.com/icl-utk-edu/lapackpp/pull/92): `LAPACK_LIBRARIES` paths with spaces (the LAPACK++ half of blaspp#137) | `720217022faf38945ab76eb43beb0f5b7e660da2` | `90e189db53eb3239f76f4c49ddf855b21df2c664` | - | pending |
+| L1 | [#92](https://github.com/icl-utk-edu/lapackpp/pull/92): `LAPACK_LIBRARIES` paths with spaces, with the same normalization as B1 | `2e8bef5c6ac1b152f3fa4682b21c36ef4cf912ca` | `96acce118c01b6c270eb6acd36cb8f60e35ba57d` | carry/l1 | carried |
 | L2 | [#91](https://github.com/icl-utk-edu/lapackpp/pull/91) (Riley Murray): `lapack_symbol_suffix` for symbol-suffixed ILP64 OpenBLAS | `1f85c68ec3bdfc7be4d6f72daa4443c764f1da5a` | `239f3e7189e366fbc1cc65416fb30eb74478bacf` | - | pending |
 | L3 | PR to be opened (fork branch `fix-gemqrt-empty-workspace`): `gemqrt` allocates at least one workspace entry (empty-vector UB at n = 0 / m = 0; root cause of BallisticLA/RandLAPACK#91, see BallisticLA/RandLAPACK#202); tester sizes V by side and allows zero dims | `9fd0e5e0cd72644c2ee04ba2d8acf7de0d8a29f2` | `a47ade3fa1af372f9d7d763822144e8b45e96d00` | carry/l3 | carried |
 | L4 | PR to be opened: a re-configure drops `LAPACK_VERSION`, `LAPACK_HAVE_LAPACKE` and other defines | - | - | - | pending |
