@@ -109,6 +109,15 @@ for _lane, (_os, _subs) in LANES.items():
         SUB[_sc] = {'lane': _lane, 'os': _os, 'lib': _sc.split('.')[1],
                     'owner': _owner, 'tester': _tester}
 
+# Sub-checks that test the same BLAS library as another sub-check, and
+# without their own baseline are held to that one's (lane 5 copies the apt
+# OpenBLAS of lane 1 to a path with a space).
+REFERENCE = {
+    '5a.blaspp': '1-cmake.blaspp',
+    '5a.lapackpp': '1-cmake.lapackpp',
+    '5b.lapackpp': '1-cmake.lapackpp',
+}
+
 BLASPP_TESTS = ['--quick', '--blas1', '--blas2', '--blas3']
 LAPACKPP_TESTS = ['--quick', '--host']
 SHA_RE = re.compile(r'^[0-9a-f]{40}$')
@@ -1143,12 +1152,16 @@ def load_baseline(srcs, sc):
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def default_tests(lib):
+    return BLASPP_TESTS if lib == 'blaspp' else LAPACKPP_TESTS
+
+
 def reference_routines(srcs, sc, args):
     """Routines a sub-check without its own baseline must still run: those of
     1-cmake.<lib>'s baseline, when the sub-check ran the same run_tests.py
     arguments."""
     lib = SUB[sc]['lib']
-    if args != (BLASPP_TESTS if lib == 'blaspp' else LAPACKPP_TESTS):
+    if args != default_tests(lib):
         return None
     ref = load_baseline(srcs, f'1-cmake.{lib}')
     return list(ref['routines']) if ref else None
@@ -1216,9 +1229,20 @@ def outcome(sc, rec, srcs):
         elif t.get('parse_error'):
             reasons.append(f'tester: {t["parse_error"]}')
         else:
-            base = load_baseline(srcs, sc)
-            required = None if base else reference_routines(srcs, sc, t.get('args'))
+            base, required, lib = load_baseline(srcs, sc), None, SUB[sc]['lib']
+            if base is None and sc in REFERENCE and t.get('args') == default_tests(lib):
+                base = load_baseline(srcs, REFERENCE[sc])
+                if base is not None:
+                    notes.append(f'compared with the {REFERENCE[sc]} baseline (same BLAS library)')
+            if base is None:
+                required = reference_routines(srcs, sc, t.get('args'))
             problems, n = compare_routines(t['routines'], base, t.get('details'), required)
+            if problems and base is None and not (Path(srcs[lib]) / EXPECTATIONS).exists():
+                # That fork's commit is unmodified upstream (no F0): there is no
+                # baseline to hold its known failures to, so record them.
+                notes += [f'tester (recorded; BallisticLA/{lib} has no F0 baselines at this commit): {p}'
+                          for p in problems]
+                problems = []
             reasons += [f'tester: {p}' for p in problems]
             notes += n
     elif mode == RECORD and t:
@@ -1600,6 +1624,38 @@ def cmd_selftest(a):
         (srcs['lapackpp'] / EXPECTATIONS).unlink()
         _, ok = quiet_judge(base, list(LANES), 'file', srcs, shas, both)
         expect(ok, 'judge: bootstrap (no lapackpp file) rejected')
+        # A fork without F0 (no expectations file): its routine failures are
+        # recorded, not gated, because it has no baseline to hold them to.
+        pre = dict(base)
+        pre['1-cmake'] = fake('1-cmake', {}, routines={'gemm [s]': 'fail'})
+        pre['1-cmake']['subchecks']['1-cmake.lapackpp']['tester']['routines'] = {'getrf [s]': 'fail'}
+        _, ok = quiet_judge(pre, list(LANES), 'file', srcs, shas, both)
+        expect(not ok, 'judge: failing routine of the fork with F0 accepted')
+        pre['1-cmake'] = fake('1-cmake', {})
+        pre['1-cmake']['subchecks']['1-cmake.lapackpp']['tester']['routines'] = {'getrf [s]': 'fail'}
+        _, ok = quiet_judge(pre, list(LANES), 'file', srcs, shas, both)
+        expect(ok, 'judge: failing routine of a fork without F0 not recorded')
+        # Reference baseline: 5a.blaspp is held to 1-cmake.blaspp's.
+        (srcs['blaspp'] / BASELINE_DIR).mkdir(parents=True, exist_ok=True)
+        (srcs['blaspp'] / BASELINE_DIR / '1-cmake.blaspp.json').write_text(json.dumps(
+            bl({'gemm [s]': 'pass', 'rotg [s]': 'fail'}, {'rotg [s]': {'exit': 1, 'rows': ['#2 z 200']}})))
+        write_exp('blaspp', overrides={'5a.blaspp': 'pass', '5a.lapackpp': 'pass'})
+        ref = dict(fixed)
+        ref['5a'] = fake('5a', {})
+        ref['1-cmake'] = fake('1-cmake', {})
+        ref['1-cmake']['subchecks']['1-cmake.blaspp']['tester'].update(
+            routines={'gemm [s]': 'pass', 'rotg [s]': 'fail'}, details={'rotg [s]': {'exit': 1, 'rows': ['#2 z 200']}})
+        t5 = ref['5a']['subchecks']['5a.blaspp']['tester']
+        t5.update(args=list(BLASPP_TESTS), routines={'gemm [s]': 'pass', 'rotg [s]': 'fail'},
+                  details={'rotg [s]': {'exit': 1, 'rows': ['#2 z 200']}})
+        _, ok = quiet_judge(ref, list(LANES), 'file', srcs, shas, both)
+        expect(ok, 'judge: known failure of the reference baseline rejected')
+        t5.update(routines={'gemm [s]': 'fail', 'rotg [s]': 'fail'},
+                  details={'gemm [s]': {'exit': 1, 'rows': ['#1 s 1']}, 'rotg [s]': {'exit': 1, 'rows': ['#2 z 200']}})
+        _, ok = quiet_judge(ref, list(LANES), 'file', srcs, shas, both)
+        expect(not ok, 'judge: regression against the reference baseline accepted')
+        write_exp('blaspp')
+        (srcs['blaspp'] / BASELINE_DIR / '1-cmake.blaspp.json').unlink()
         stale = dict(base)
         stale['2'] = dict(base['2'], blaspp={'sha': 'c' * 40})
         _, ok = quiet_judge(stale, list(LANES), 'file', srcs, shas, both)

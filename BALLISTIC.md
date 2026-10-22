@@ -154,9 +154,11 @@ Per-routine results are compared with `.github/ballistic-baseline/<sub-check>.js
 in the fork of the tested library. A routine that passed there must still run
 and pass, and a new routine must pass. A routine recorded as failing may keep
 failing only in the result rows that failed there, with an exit status equal
-to its number of failed rows (so a crash is not a known failure). A sub-check
-without a stored baseline needs every routine to pass and, when it runs the
-default tester arguments, every routine of `1-cmake.<lib>` to have run.
+to its number of failed rows (so a crash is not a known failure). Lane 5's
+sub-checks, which copy lane 1's OpenBLAS, are held to the `1-cmake.<lib>`
+baseline until they have their own. Any other sub-check without a stored
+baseline needs every routine to pass and, when it runs the default tester
+arguments, every routine of `1-cmake.<lib>` to have run.
 Baselines are written from a run's downloaded `results-*` artifacts with
 `ci.py baseline --results <dir> --lib <lib> --dest .github/ballistic-baseline --run-url <url>`,
 which re-parses the raw tester output, refuses sub-checks whose build, checks
@@ -190,11 +192,11 @@ re-used with "Re-run failed jobs" keeps its resolved commits; use "Re-run all
 jobs" to pick up the other fork's new `main`.
 
 **First merge (F0).** While a fork's `main` has no F0 yet, runs in the other
-fork find no expectations or baselines for it: they treat it as unmodified
-upstream and require every one of its tester routines to pass. BLAS++'s known
-`rotg` failure therefore fails the LAPACK++ F0 run until BLAS++'s F0 is in
-`main`. Merge BLAS++'s F0 first, then "Re-run all jobs" on LAPACK++'s F0 run
-and merge it once it passes.
+fork find no expectations or baselines for it. They treat that commit as
+unmodified upstream: its owned sub-checks must fail and the rest pass, and its
+tester routine failures are recorded as notes, since there is no baseline to
+hold them to (BLAS++'s known `rotg` failure shows up this way in LAPACK++'s
+F0 run). Either F0 can be merged first.
 
 **Not covered yet.** The CUDA re-configure case (no GPU runners). A
 `lapack_symbol_suffix` re-configure scenario arrives with the L4/L2
