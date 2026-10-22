@@ -22,6 +22,10 @@
 7b.lapackpp: pass
 7c.lapackpp: pass
 8b.lapackpp: pass
+7c.lapackpp.list: pass
+9.lapackpp.space-path: pass
+9.lapackpp.bare-names: pass
+9.lapackpp.rerun: pass
 
 # L1, icl-utk-edu/lapackpp#92: LAPACK_LIBRARIES paths with spaces.
 5b.lapackpp: xfail:L1

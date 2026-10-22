@@ -93,7 +93,10 @@ LANES = collections.OrderedDict([
     # 7: macOS new Accelerate; no LAPACKE, so build and consumer only.
     ('7a', ('macos', [('7a.blaspp', None, NONE), ('7a.lapackpp', None, NONE)])),
     ('7b', ('macos', [('7b.blaspp', None, NONE), ('7b.lapackpp', None, NONE)])),
-    ('7c', ('macos', [('7c.lapackpp', None, NONE)])),
+    # 7c also passes LAPACK_LIBRARIES as the CMake list "-framework;Accelerate"
+    # to both libraries.
+    ('7c', ('macos', [('7c.lapackpp', None, NONE), ('7c.blaspp.list', None, NONE),
+                      ('7c.lapackpp.list', None, NONE)])),
     # 8: MSVC + oneMKL ILP64 (NuGet) at a path with spaces. (a) BLAS_LIBRARIES
     # given to BLAS++ (B1); (b) LAPACK++ against the same libraries without
     # spaces, then given them at the spaced path as LAPACK_LIBRARIES (L1).
@@ -101,6 +104,17 @@ LANES = collections.OrderedDict([
     ('8a', ('windows', [('8a.blaspp', 'B1', RECORD), ('8a.lapackpp', 'B1', RECORD)])),
     ('8b', ('windows', [('8b.blaspp', None, RECORD), ('8b.lapackpp', None, RECORD),
                         ('8b.lapackpp.spaced', 'L1', NONE)])),
+    # 9: apt OpenBLAS; LAPACK_LIBRARIES forms that work upstream and must keep
+    # working, for BLAS++'s and LAPACK++'s LAPACKFinder: an absolute path plus
+    # a flag as one space-separated string; bare library names; and a
+    # re-configure re-passing the same value, which must not search again
+    # (BLAS++'s byte-for-byte comparison needs B2a, as in lane 6).
+    ('9', ('linux', [
+        ('9.blaspp.space-path', None, NONE), ('9.lapackpp.space-path', None, NONE),
+        ('9.blaspp.bare-names', None, NONE), ('9.lapackpp.bare-names', None, NONE),
+        ('9.blaspp.rerun', None, NONE), ('9.blaspp.rerun-identical', 'B2a', NONE),
+        ('9.lapackpp.rerun', None, NONE),
+    ])),
 ])
 
 SUB = collections.OrderedDict()
@@ -117,6 +131,11 @@ REFERENCE = {
     '5a.lapackpp': '1-cmake.lapackpp',
     '5b.lapackpp': '1-cmake.lapackpp',
 }
+
+# Sub-checks whose baselines also hold the exported <lib>_libraries and
+# <lib>_defines: lane 4 passes BLAS_LIBRARIES and LAPACK_LIBRARIES in both
+# forms, and the form consumers receive must not change.
+EXPORTS_CHECKED = ('4a.blaspp', '4a.lapackpp', '4b.blaspp', '4b.lapackpp')
 
 BLASPP_TESTS = ['--quick', '--blas1', '--blas2', '--blas3']
 LAPACKPP_TESTS = ['--quick', '--host']
@@ -256,11 +275,13 @@ def fetch(url, sha, dest, log):
 
 
 def ls_remote_main(url):
-    r = subprocess.run(['git', 'ls-remote', url, 'refs/heads/main'], capture_output=True, text=True)
-    sha = r.stdout.split()[0] if r.returncode == 0 and r.stdout.strip() else ''
-    if not SHA_RE.match(sha):
-        die(f'cannot resolve main of {url}: {r.stderr.strip()}')
-    return sha
+    for attempt in range(4):
+        r = subprocess.run(['git', 'ls-remote', url, 'refs/heads/main'], capture_output=True, text=True)
+        sha = r.stdout.split()[0] if r.returncode == 0 and r.stdout.strip() else ''
+        if SHA_RE.match(sha):
+            return sha
+        time.sleep(10 * (attempt + 1))
+    die(f'cannot resolve main of {url}: {r.stderr.strip()}')
 
 
 # ------------------------------------------------------- tester output parser
@@ -270,10 +291,12 @@ def parse_run_tests(stdout_text, xml_text, exit_code, test_cmd):
 
     run_tests.py prints each tester command (starting with test_cmd), the
     tester's output, then a line 'pass' or 'FAILED: exit code N'. The key is
-    the routine plus its --type value, with '#2', '#3' for repeats. For a
-    failed command, `details` records the tester's exit status and its failed
-    result rows ('#<row> <first two columns>', in the order printed), so a
-    known failure can be held to the rows that failed before. The result is
+    the routine plus its --type value, with '#2', '#3' for repeats.
+    `details[key]['n']` counts the result rows the tester printed (a routine
+    compiled out of the tester prints none, yet passes). For a failed command,
+    `details` also records the tester's exit status and its failed result rows
+    ('#<row> <first two columns>', in the order printed), so a known failure
+    can be held to the rows that failed before. The result is
     cross-checked against the --xml report and the exit status of
     run_tests.py (the number of failed commands).
     Returns (routines, details, error); error is None when all agree."""
@@ -304,16 +327,17 @@ def parse_run_tests(stdout_text, xml_text, exit_code, test_cmd):
         seen[base] += 1
         key = base if seen[base] == 1 else f'{base} #{seen[base]}'
         routines[key] = status
+        rows, n = [], 0
+        for row in lines:
+            cols = row.split()
+            if len(cols) >= 3 and cols[-1] in ('pass', 'FAILED'):
+                n += 1
+                if cols[-1] == 'FAILED':
+                    rows.append(f'#{n} {cols[0]} {cols[1]}')
+        details[key] = {'n': n}
         if status == 'fail':
             m = re.match(r'FAILED: exit code (-?\d+)', result)
-            rows, n = [], 0
-            for row in lines:
-                cols = row.split()
-                if len(cols) >= 3 and cols[-1] in ('pass', 'FAILED'):
-                    n += 1
-                    if cols[-1] == 'FAILED':
-                        rows.append(f'#{n} {cols[0]} {cols[1]}')
-            details[key] = {'exit': int(m.group(1)) if m else None, 'rows': rows}
+            details[key].update(exit=int(m.group(1)) if m else None, rows=rows)
     if xml_text is None:
         return routines, details, 'run_tests.py wrote no XML report'
     try:
@@ -460,6 +484,11 @@ class Runner:
         cfg = ['cmake', '-S', self.src[lib], '-B', bdir, *self.gen, '-DCMAKE_BUILD_TYPE=Release',
                '-Dcolor=no', f'-DCMAKE_INSTALL_PREFIX={prefix}',
                f'-Dbuild_tests={"yes" if tester else "no"}', *self.linker, *args]
+        if tester:
+            # The testers' FetchContent uses the testsweeper commit fetched above
+            # (the same tag), instead of cloning it again.
+            cfg.append('-DFETCHCONTENT_SOURCE_DIR_TESTSWEEPER='
+                       + str(self.src['testsweeper']).replace('\\', '/'))
         if deps:
             cfg.append('-DCMAKE_PREFIX_PATH=' + ';'.join(str(d) for d in deps))
         ok, note = self.sh(cfg, f'{name}.configure', env=env, echo=True) == 0, 'configure failed'
@@ -488,6 +517,7 @@ class Runner:
             if consumer:
                 self.blocked(key, ['consumer'], 'build failed')
             return None
+        self.rec(key)['exports'] = exports_of(lib, prefix, self.work)
         ctx = {'lib': lib, 'prefix': prefix, 'bdir': bdir, 'test_dir': bdir / 'test' if tester_built else None}
         self.run_checks(key, checks, ctx)
         if consumer:
@@ -641,10 +671,12 @@ class Runner:
                     tb.splitlines(True), ta.splitlines(True), f'fresh/{rel}', f're-configured/{rel}')))
         return diffs
 
-    def reconfigure(self, key, lib, steps, final, deps=(), env=None, after=None):
+    def reconfigure(self, key, lib, steps, final, deps=(), env=None, after=None, defines=(), compare=True):
         """Run the configure steps in one build tree (each step: (args, 'ok' |
         'fail') or a callable), then compare defines.h and <lib>Config.cmake
-        with a fresh configure using `final`."""
+        with a fresh configure using `final`. The fresh tree's defines.h must
+        also define every name in `defines` ('NAME*' matches a prefix), so the
+        comparison is against a known-good reference."""
         if any(d is None for d in deps):
             self.blocked(key, ['reconfigure', 'compare'], 'a prerequisite build failed')
             return
@@ -664,7 +696,8 @@ class Runner:
             if callable(step):
                 step()
                 continue
-            args, want = step
+            args, want, check_output = (tuple(step) + (None,))[:3]
+            log = self.logs / f'{key}.step{i}.log'
             rc = self.sh(['cmake', '-S', self.src[lib], '-B', tree, *base, *args], f'{key}.step{i}',
                          env=env, echo=True)
             self.snapshot(lib, tree, snaps / f'step{i}')
@@ -672,11 +705,17 @@ class Runner:
                 ok, note = False, f'configure step {i} failed'
             elif want == 'fail' and rc == 0:
                 ok, note = False, f'precondition: configure step {i} was expected to fail but succeeded'
+            elif check_output:
+                problem = check_output(log.read_text(encoding='utf-8', errors='replace'))
+                if problem:
+                    ok, note = False, f'configure step {i}: {problem}'
             i += 1
             if not ok:
                 break
         self.endgroup()
         self.phase(key, 'reconfigure', ok, note, t0)
+        if not compare:
+            return
         if not ok:
             self.blocked(key, ['compare'], 're-configure sequence did not complete')
             return
@@ -689,6 +728,12 @@ class Runner:
             self.endgroup()
             self.phase(key, 'compare', False, 'fresh configure failed', t0)
         else:
+            f = fresh / FILES[lib][0]
+            text = f.read_text(encoding='utf-8', errors='replace') if f.exists() else ''
+            lacking = [d for d in defines if not re.search(
+                r'#define\s+' + (re.escape(d[:-1]) if d.endswith('*') else re.escape(d) + r'\b'), text)]
+            self.phase(key, 'fresh-defines', not lacking,
+                       'fresh defines.h lacks ' + ', '.join(lacking) if lacking else '')
             diffs = self.compare(lib, tree, fresh)
             if diffs:
                 (snaps / 'diff.txt').write_text('\n'.join(diffs), encoding='utf-8')
@@ -779,8 +824,45 @@ def lapacke_suffixed(sfx):
     return check
 
 
+def exports_of(lib, prefix, work):
+    """`<lib>_libraries` and `<lib>_defines` as the installed <lib>Config.cmake
+    exports them to consumers, with the work directory written as <WORK>."""
+    found = sorted(Path(prefix).rglob(f'{lib}Config.cmake'))
+    if not found:
+        return None
+    text = found[0].read_text(encoding='utf-8', errors='replace')
+    out = {}
+    for var in (f'{lib}_libraries', f'{lib}_defines'):
+        m = re.search(r'set\(\s*' + re.escape(var) + r'\s+"([^"]*)"', text)
+        out[var] = m.group(1).replace(str(work).replace('\\', '/'), '<WORK>').replace(str(work), '<WORK>') if m else None
+    return out
+
+
+def lapack_not_redetected(text):
+    """For a re-configure with unchanged LAPACK settings: the LAPACK search
+    must not run again. Its probe lines (' yes', ' no (...)') appear between
+    'Looking for LAPACK libraries and options' and the search's result line."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if 'Looking for LAPACK libraries and options' in line:
+            for nxt in lines[i + 1:]:
+                if 'Found LAPACK library' in nxt or 'LAPACK library not found' in nxt:
+                    break
+                if re.search(r'\s(yes|no \()', nxt):
+                    return 'the LAPACK search ran again: ' + nxt.strip()
+    return None
+
+
 BLAS_MANGLING = defines_has_prefix('BLAS_FORTRAN_')
 LAPACK_LINUX = defines_has('LAPACK_HAVE_LAPACK', 'LAPACK_VERSION', 'LAPACK_HAVE_LAPACKE')
+
+
+def system_openblas():
+    """Absolute path of the system libopenblas.so."""
+    found = subprocess.run(['gcc', '-print-file-name=libopenblas.so'], capture_output=True, text=True).stdout.strip()
+    if not os.path.isabs(found):
+        raise RuntimeError('libopenblas.so not found')
+    return found
 
 
 def spaced_openblas(r):
@@ -878,6 +960,10 @@ def recipe(r):
             bp = r.cmake_lib(None, 'blaspp', '7c-blaspp', args, consumer=False)
             r.cmake_lib('7c.lapackpp', 'lapackpp', '7c-lapackpp', ['-DLAPACK_LIBRARIES=-framework Accelerate'],
                         deps=[bp], checks=[defines_has('LAPACK_HAVE_LAPACK'), config_has('-framework Accelerate')])
+            listed = '-DLAPACK_LIBRARIES=-framework;Accelerate'
+            r.cmake_lib('7c.blaspp.list', 'blaspp', '7c-blaspp-list', args + [listed], checks=checks)
+            r.cmake_lib('7c.lapackpp.list', 'lapackpp', '7c-lapackpp-list', [listed], deps=[bp],
+                        checks=[defines_has('LAPACK_HAVE_LAPACK')])
         else:
             bp = r.cmake_lib(f'{lane}.blaspp', 'blaspp', f'{lane}-blaspp', args, checks=checks)
             r.cmake_lib(f'{lane}.lapackpp', 'lapackpp', f'{lane}-lapackpp', [], deps=[bp],
@@ -910,6 +996,26 @@ def recipe(r):
             r.cmake_lib('8b.lapackpp.spaced', 'lapackpp', '8b-lapackpp-spaced',
                         ['-Dgpu_backend=none', '-DLAPACK_LIBRARIES=' + ';'.join(spaced)], deps=[bp],
                         checks=[defines_has('LAPACK_HAVE_LAPACK'), config_has(dirname)])
+    elif lane == '9':
+        lib = system_openblas()
+        space, bare = f'{lib} -lm', 'openblas m'
+        r.cmake_lib('9.blaspp.space-path', 'blaspp', '9-blaspp-space', lp64 + [f'-DLAPACK_LIBRARIES={space}'],
+                    checks=[BLAS_MANGLING, config_has(lib)])
+        r.cmake_lib('9.blaspp.bare-names', 'blaspp', '9-blaspp-bare', lp64 + [f'-DLAPACK_LIBRARIES={bare}'],
+                    checks=[BLAS_MANGLING])
+        bp = r.cmake_lib(None, 'blaspp', '9-blaspp', lp64, consumer=False)
+        r.cmake_lib('9.lapackpp.space-path', 'lapackpp', '9-lapackpp-space', [f'-DLAPACK_LIBRARIES={space}'],
+                    deps=[bp], checks=[LAPACK_LINUX, config_has(lib)])
+        r.cmake_lib('9.lapackpp.bare-names', 'lapackpp', '9-lapackpp-bare', [f'-DLAPACK_LIBRARIES={bare}'],
+                    deps=[bp], checks=[LAPACK_LINUX])
+        again = lp64 + [f'-DLAPACK_LIBRARIES={space}']
+        r.reconfigure('9.blaspp.rerun', 'blaspp', [(again, 'ok'), (again, 'ok', lapack_not_redetected)],
+                      again, compare=False)
+        r.reconfigure('9.blaspp.rerun-identical', 'blaspp', [(again, 'ok'), (again, 'ok')], again,
+                      defines=['BLAS_FORTRAN_*', 'BLAS_HAVE_OPENBLAS'])
+        lagain = [f'-DLAPACK_LIBRARIES={space}']
+        r.reconfigure('9.lapackpp.rerun', 'lapackpp', [(lagain, 'ok'), (lagain, 'ok', lapack_not_redetected)],
+                      lagain, deps=[bp], defines=['LAPACK_HAVE_LAPACK', 'LAPACK_VERSION', 'LAPACK_HAVE_LAPACKE'])
     else:
         raise RuntimeError(f'no recipe for lane {lane}')
 
@@ -969,37 +1075,40 @@ def lane6(r):
 
     # BLAS++: identical re-run; changed blas_fortran; suffix added after a
     # failed configure; library that appears after a failed configure.
+    good = ['BLAS_FORTRAN_*', 'BLAS_HAVE_OPENBLAS']
     r.reconfigure('6.blaspp.identical', 'blaspp', [(blas, 'ok'), (blas, 'ok')], blas,
-                  after=build_lapackpp_against)
+                  after=build_lapackpp_against, defines=good)
     r.reconfigure('6.blaspp.fortran', 'blaspp', [(blas, 'ok'), (blas + ['-Dblas_fortran=gfortran'], 'ok')],
-                  blas + ['-Dblas_fortran=gfortran'])
+                  blas + ['-Dblas_fortran=gfortran'], defines=good)
     conda = os.environ.get('CONDA_PREFIX')
     if conda:
         env = dict(r.env)
         env['LD_LIBRARY_PATH'] = os.pathsep.join([f'{conda}/lib'] + ([env['LD_LIBRARY_PATH']] if env.get('LD_LIBRARY_PATH') else []))
         sfx = [f'-DBLAS_LIBRARIES={conda}/lib/libopenblas64_.so', '-Dblas_int=int64']
         r.reconfigure('6.blaspp.suffix', 'blaspp', [(sfx, 'fail'), (sfx + ['-Dblas_symbol_suffix=64_'], 'ok')],
-                      sfx + ['-Dblas_symbol_suffix=64_'], env=env)
+                      sfx + ['-Dblas_symbol_suffix=64_'], env=env,
+                      defines=['BLAS_FORTRAN_*', 'BLAS_ILP64', 'BLAS_FORTRAN_SUFFIX'])
     else:
         r.blocked('6.blaspp.suffix', ['reconfigure'], 'CONDA_PREFIX not set (conda OpenBLAS missing)')
     late = r.work / 'late-blas'
     shutil.rmtree(late, ignore_errors=True)
     late_lib = ['-DBLAS_LIBRARIES=' + str(late / 'libopenblas.so')]
     r.reconfigure('6.blaspp.failed-then-fixed', 'blaspp',
-                  [(late_lib, 'fail'), lambda: copy_openblas(late), (late_lib, 'ok')], late_lib)
+                  [(late_lib, 'fail'), lambda: copy_openblas(late), (late_lib, 'ok')], late_lib, defines=good)
 
     # LAPACK++, against a fresh BLAS++: identical re-run; changed `lapack`
     # option; LAPACK_LIBRARIES that appears after a failed configure.
     bp = r.cmake_lib(None, 'blaspp', '6-blaspp', blas, consumer=False)
-    r.reconfigure('6.lapackpp.identical', 'lapackpp', [([], 'ok'), ([], 'ok')], [], deps=[bp])
+    lgood = ['LAPACK_HAVE_LAPACK', 'LAPACK_VERSION', 'LAPACK_HAVE_LAPACKE']
+    r.reconfigure('6.lapackpp.identical', 'lapackpp', [([], 'ok'), ([], 'ok')], [], deps=[bp], defines=lgood)
     r.reconfigure('6.lapackpp.option', 'lapackpp', [([], 'ok'), (['-Dlapack=default'], 'ok')],
-                  ['-Dlapack=default'], deps=[bp])
+                  ['-Dlapack=default'], deps=[bp], defines=lgood)
     late2 = r.work / 'late-lapack'
     shutil.rmtree(late2, ignore_errors=True)
     late_lapack = ['-DLAPACK_LIBRARIES=' + str(late2 / 'libopenblas.so')]
     r.reconfigure('6.lapackpp.failed-then-fixed', 'lapackpp',
                   [(late_lapack, 'fail'), lambda: copy_openblas(late2), (late_lapack, 'ok')], late_lapack,
-                  deps=[bp])
+                  deps=[bp], defines=lgood)
 
 
 def copy_openblas(dest):
@@ -1101,17 +1210,27 @@ def load_expectations(mode, srcs, strict=None):
     return exp, errors, notes
 
 
+CI_FILES = ('.github/ballistic/ci.py', '.github/workflows/ballistic-ci.yml')
+
+
 def rules_loosened(base_src, head_src):
     """Changes from a pull request's base to its head that relax the gate in
-    the fork under test: an expectation that leaves `pass` or disappears; a
-    baseline file or routine that disappears; a baseline routine that no
-    longer passes, or fails in more rows. Returns (loosenings, notes)."""
+    the fork under test. Returns (loosenings, notes). Counted as relaxing:
+    - a change to the CI code itself (ci.py or the workflow);
+    - an expectation that leaves `pass` or disappears;
+    - a baseline file or routine that disappears; a baseline routine that no
+      longer passes, fails in more rows, or prints fewer result rows;
+    - a routine added to an existing baseline with a failing result;
+    - a new baseline file that records any failing routine, or that misses a
+      routine (or its result rows) of the baseline it replaces as reference:
+      REFERENCE[sc] at the base, else 1-cmake.<lib> at the base.
+    Flipping an xfail to pass, and adding passing routines, tighten the gate."""
     out, notes = [], []
-    bpath, hpath = Path(base_src) / EXPECTATIONS, Path(head_src) / EXPECTATIONS
-    for name in ('.github/ballistic/ci.py', '.github/workflows/ballistic-ci.yml'):
+    for name in CI_FILES:
         b, h = Path(base_src) / name, Path(head_src) / name
         if b.exists() and (not h.exists() or b.read_bytes() != h.read_bytes()):
-            notes.append(f'{name} changes in this pull request: the gate\'s own code is under review too')
+            out.append(f'{name} changed (the gate\'s own code)')
+    bpath, hpath = Path(base_src) / EXPECTATIONS, Path(head_src) / EXPECTATIONS
     if not bpath.exists():
         notes.append('the base commit has no expectations file; nothing to compare')
         return out, notes
@@ -1123,24 +1242,64 @@ def rules_loosened(base_src, head_src):
             out.append(f'{EXPECTATIONS}: {sc} removed (was {b})')
         elif b == 'pass' and h != 'pass':
             out.append(f'{EXPECTATIONS}: {sc} {b} -> {h}')
-    bdir = Path(base_src) / BASELINE_DIR
-    for bf in sorted(bdir.glob('*.json')) if bdir.is_dir() else []:
-        hf = Path(head_src) / BASELINE_DIR / bf.name
-        if not hf.exists():
-            out.append(f'{BASELINE_DIR}/{bf.name} removed')
+
+    def load(d, name):
+        f = Path(d) / BASELINE_DIR / name
+        return json.loads(f.read_text(encoding='utf-8')) if f.exists() else None
+
+    def names(d):
+        p = Path(d) / BASELINE_DIR
+        return {f.name for f in p.glob('*.json')} if p.is_dir() else set()
+
+    for name in sorted(names(base_src) | names(head_src)):
+        b, h = load(base_src, name), load(head_src, name)
+        if h is None:
+            out.append(f'{BASELINE_DIR}/{name} removed')
             continue
-        b, h = json.loads(bf.read_text(encoding='utf-8')), json.loads(hf.read_text(encoding='utf-8'))
-        for k, bv in b['routines'].items():
-            hv = h['routines'].get(k)
-            if hv is None:
-                out.append(f'{bf.name}: {k} removed')
-            elif bv == 'pass' and hv != 'pass':
-                out.append(f'{bf.name}: {k} pass -> {hv}')
-            elif bv != 'pass' and hv != 'pass':
-                extra = (set(h.get('details', {}).get(k, {}).get('rows', []))
-                         - set(b.get('details', {}).get(k, {}).get('rows', [])))
-                if extra:
-                    out.append(f'{bf.name}: {k} fails in more rows: {", ".join(sorted(extra))}')
+        hr, hd = h.get('routines', {}), h.get('details', {})
+        if b is not None:
+            br, bd = b.get('routines', {}), b.get('details', {})
+            for k, bv in br.items():
+                hv = hr.get(k)
+                if hv is None:
+                    out.append(f'{name}: {k} removed')
+                    continue
+                if bv == 'pass' and hv != 'pass':
+                    out.append(f'{name}: {k} pass -> {hv}')
+                elif bv != 'pass' and hv != 'pass':
+                    extra = set(hd.get(k, {}).get('rows', [])) - set(bd.get(k, {}).get('rows', []))
+                    if extra:
+                        out.append(f'{name}: {k} fails in more rows: {", ".join(sorted(extra))}')
+                bn, hn = rows_of(bd, k), rows_of(hd, k)
+                if bn is not None and (hn is None or hn < bn):
+                    out.append(f'{name}: {k} result rows {bn} -> {hn}')
+            for k, hv in hr.items():
+                if k not in br and hv != 'pass':
+                    out.append(f'{name}: {k} added as {hv}')
+            if b.get('exports') is not None and h.get('exports') != b.get('exports'):
+                out.append(f'{name}: exported libraries/defines changed')
+            continue
+        # A new baseline replaces the reference the gate used until now.
+        for k, hv in hr.items():
+            if hv != 'pass':
+                out.append(f'{name} (new): {k} recorded as {hv}')
+        sc = name[:-len('.json')]
+        if sc not in SUB:
+            out.append(f'{name} (new): not a sub-check in ci.py')
+            continue
+        if h.get('args') not in (None, default_tests(SUB[sc]['lib'])):
+            continue
+        ref_name = REFERENCE.get(sc, f'1-cmake.{SUB[sc]["lib"]}') + '.json'
+        ref = load(base_src, ref_name)
+        if ref is None:
+            continue
+        missing = [k for k in ref['routines'] if k not in hr]
+        if missing:
+            out.append(f'{name} (new): lacks {len(missing)} routine(s) of {ref_name}: {", ".join(missing[:6])}')
+        thin = [k for k in ref['routines'] if k in hr
+                and (rows_of(ref.get('details'), k) or 0) > 0 and not rows_of(hd, k)]
+        if thin:
+            out.append(f'{name} (new): no result rows for {", ".join(thin[:6])}')
     return out, notes
 
 
@@ -1157,35 +1316,52 @@ def default_tests(lib):
 
 
 def reference_routines(srcs, sc, args):
-    """Routines a sub-check without its own baseline must still run: those of
-    1-cmake.<lib>'s baseline, when the sub-check ran the same run_tests.py
-    arguments."""
+    """The baseline a sub-check without its own must still cover: 1-cmake.<lib>'s,
+    when the sub-check ran the same run_tests.py arguments."""
     lib = SUB[sc]['lib']
     if args != default_tests(lib):
         return None
-    ref = load_baseline(srcs, f'1-cmake.{lib}')
-    return list(ref['routines']) if ref else None
+    return load_baseline(srcs, f'1-cmake.{lib}')
 
 
-def compare_routines(cur, base, details=None, required=None):
+def rows_of(details, k):
+    """Result rows a routine printed, or None if not recorded."""
+    return (details or {}).get(k, {}).get('n')
+
+
+def compare_routines(cur, base, details=None, reference=None):
     """Problems (fail the sub-check) and notes, comparing per-routine results
-    with the stored baseline. Without a baseline every routine must pass, and
-    every routine in `required` must have run. A routine that failed in the
-    baseline may keep failing, but only in the result rows that failed there,
-    and with an exit status equal to its number of failed rows."""
+    with the stored baseline.
+
+    With a baseline: a routine that passed must still run and pass, and print
+    at least as many result rows (a routine compiled out of the tester prints
+    none and still passes); a new routine must pass; a routine that failed may
+    keep failing, but only in the result rows that failed there and with an
+    exit status equal to its number of failed rows. Without one: every routine
+    must pass, and every routine of `reference` (1-cmake.<lib>'s baseline)
+    must have run and printed result rows if it printed any there."""
     problems, notes, details = [], [], details or {}
     if base is None:
         failed = [k for k, v in cur.items() if v != 'pass']
         if failed:
             problems.append(f'{len(failed)} routine(s) failed (no stored baseline): ' + ', '.join(failed[:8]))
-        missing = [k for k in (required or []) if k not in cur]
-        if missing:
-            problems.append(f'{len(missing)} routine(s) of the 1-cmake reference did not run: '
-                            + ', '.join(missing[:8]))
+        if reference:
+            missing = [k for k in reference['routines'] if k not in cur]
+            if missing:
+                problems.append(f'{len(missing)} routine(s) of the 1-cmake reference did not run: '
+                                + ', '.join(missing[:8]))
+            empty = [k for k in reference['routines'] if k in cur and rows_of(details, k) == 0
+                     and (rows_of(reference.get('details'), k) or 0) > 0]
+            if empty:
+                problems.append(f'{len(empty)} routine(s) printed no result rows (compiled out?): '
+                                + ', '.join(empty[:8]))
         return problems, notes
     broutines, bdetails = base['routines'], base.get('details', {})
     for k, b in broutines.items():
         c = cur.get(k)
+        bn, cn = rows_of(bdetails, k), rows_of(details, k)
+        if c is not None and bn is not None and (cn is None or cn < bn):
+            problems.append(f'{k}: printed {cn} result rows, baseline {bn}')
         if c is None:
             problems.append(f'{k}: did not run (baseline {b})')
         elif b == 'pass' and c != 'pass':
@@ -1195,7 +1371,7 @@ def compare_routines(cur, base, details=None, required=None):
         elif b != 'pass':
             cd, bd = details.get(k, {}), bdetails.get(k)
             rows = cd.get('rows', [])
-            if bd is None:
+            if bd is None or 'rows' not in bd:
                 problems.append(f'{k}: known failure without recorded rows in the baseline')
             elif set(rows) - set(bd['rows']):
                 problems.append(f'{k}: known failure, but new failed rows: '
@@ -1222,6 +1398,12 @@ def outcome(sc, rec, srcs):
     for name, ph in rec['phases'].items():
         if ph['status'] != 'pass':
             reasons.append(f'{name}: {ph["status"]}' + (f' ({ph["note"]})' if ph.get('note') else ''))
+    own = load_baseline(srcs, sc)
+    if own and own.get('exports') is not None:
+        for var, want in own['exports'].items():
+            got = (rec.get('exports') or {}).get(var)
+            if got != want:
+                reasons.append(f'exports: {var} is {got!r}; the baseline exports {want!r}')
     mode, t = SUB[sc]['tester'], rec.get('tester')
     if mode == GATE:
         if not t or not t.get('present'):
@@ -1236,7 +1418,7 @@ def outcome(sc, rec, srcs):
                     notes.append(f'compared with the {REFERENCE[sc]} baseline (same BLAS library)')
             if base is None:
                 required = reference_routines(srcs, sc, t.get('args'))
-            problems, n = compare_routines(t['routines'], base, t.get('details'), required)
+            problems, n = compare_routines(t['routines'], base, t.get('details'), reference=required)
             if problems and base is None and not (Path(srcs[lib]) / EXPECTATIONS).exists():
                 # That fork's commit is unmodified upstream (no F0): there is no
                 # baseline to hold its known failures to, so record them.
@@ -1481,6 +1663,12 @@ def cmd_baseline(a):
             data = {'subcheck': sc, 'run': a.run_url, 'blaspp': res['blaspp']['sha'],
                     'lapackpp': res['lapackpp']['sha'], 'args': t.get('args'),
                     'routines': routines, 'details': details}
+            if sc in EXPORTS_CHECKED:
+                if not rec.get('exports') or None in rec['exports'].values():
+                    print(f'{sc}: REFUSED, no exported libraries/defines recorded')
+                    refused += 1
+                    continue
+                data['exports'] = rec['exports']
             (dest / f'{sc}.json').write_text(json.dumps(data, indent=1) + '\n', encoding='utf-8')
             print(f'{sc}: {len(routines)} routines'
                   + (f', known failures: {[(k, details[k]["rows"]) for k in failed]}' if failed else ''))
@@ -1513,7 +1701,7 @@ def cmd_selftest(a):
            '</testsuite></testsuites>')
     r, d, err = parse_run_tests(out, xml, 1, './tester')
     expect(err is None and r == {'gemm [s,d]': 'pass', 'gemm [c,z]': 'fail', 'dot': 'pass'}, f'parse: {r} {err}')
-    expect(d == {'gemm [c,z]': {'exit': 1, 'rows': ['#2 z 200']}}, f'parse details: {d}')
+    expect(d['gemm [c,z]'] == {'n': 2, 'exit': 1, 'rows': ['#2 z 200']}, f'parse details: {d}')
     r, d, err = parse_run_tests(out, xml, 0, './tester')
     expect(err is not None, 'parse: wrong exit status accepted')
     r, d, err = parse_run_tests(out, xml.replace('<failure>1</failure>', ''), 1, './tester')
@@ -1549,8 +1737,29 @@ def cmd_selftest(a):
     expect(p, 'compare: new failure missed')
     p, _ = compare_routines({'a': 'fail'}, None)
     expect(p, 'compare: failure without baseline missed')
-    p, _ = compare_routines({'a': 'pass'}, None, required=['a', 'b'])
+    p, _ = compare_routines({'a': 'pass'}, None, reference=bl({'a': 'pass', 'b': 'pass'}))
     expect(p, 'compare: routine missing from the reference set accepted')
+    p, _ = compare_routines({'a': 'pass'}, None, {'a': {'n': 0}}, reference=bl({'a': 'pass'}, {'a': {'n': 12}}))
+    expect(p, 'compare: routine without result rows accepted against the reference')
+    p, _ = compare_routines({'a': 'pass'}, None, {'a': {'n': 3}}, reference=bl({'a': 'pass'}, {'a': {'n': 12}}))
+    expect(not p, f'compare: fewer rows than a different-configuration reference rejected: {p}')
+    p, _ = compare_routines({'a': 'pass'}, bl({'a': 'pass'}, {'a': {'n': 12}}), {'a': {'n': 0}})
+    expect(p, 'compare: routine compiled out (0 rows) accepted against its baseline')
+    p, _ = compare_routines({'a': 'pass'}, bl({'a': 'pass'}, {'a': {'n': 12}}), {'a': {'n': 11}})
+    expect(p, 'compare: fewer result rows than the baseline accepted')
+    p, _ = compare_routines({'a': 'pass'}, bl({'a': 'pass'}, {'a': {'n': 12}}), {'a': {'n': 12}})
+    expect(not p, f'compare: same result rows rejected: {p}')
+    blaspp_search = ('-- Looking for LAPACK libraries and options (lapack = )\n'
+                     '   /usr/lib/libopenblas.so;-lm                yes\n'
+                     '   Found LAPACK library: /usr/lib/libopenblas.so;-lm\n')
+    expect(lapack_not_redetected(blaspp_search), 'rerun: a repeated LAPACK search was not noticed')
+    expect(lapack_not_redetected('-- Looking for LAPACK libraries and options (lapack = )\n'
+                                 '   Found LAPACK library: x\n') is None, 'rerun: a cached run was flagged')
+    expect(lapack_not_redetected('-- Check for BLAS++\n   Found BLAS++: /x\n') is None,
+           'rerun: output without a LAPACK search was flagged')
+    _, d, _ = parse_run_tests(out, xml, 1, './tester')
+    expect(d['gemm [s,d]']['n'] == 1 and d['dot']['n'] == 0 and d['gemm [c,z]']['n'] == 2,
+           f'parse: row counts {d}')
 
     both = {'blaspp', 'lapackpp'}
     with tempfile.TemporaryDirectory() as tmp:
@@ -1656,6 +1865,20 @@ def cmd_selftest(a):
         expect(not ok, 'judge: regression against the reference baseline accepted')
         write_exp('blaspp')
         (srcs['blaspp'] / BASELINE_DIR / '1-cmake.blaspp.json').unlink()
+        # Exported libraries/defines held to the baseline's form.
+        exp4 = {'blaspp_libraries': '-la -lb;-lc;OpenMP::OpenMP_CXX', 'blaspp_defines': '-DX'}
+        (srcs['blaspp'] / BASELINE_DIR / '4b.blaspp.json').write_text(json.dumps(
+            dict(bl({'gemm [s]': 'pass'}, {'gemm [s]': {'n': 1}}), exports=exp4)))
+        ex = dict(base)
+        ex['4b'] = fake('4b', {})
+        ex['4b']['subchecks']['4b.blaspp']['tester']['details'] = {'gemm [s]': {'n': 1}}
+        ex['4b']['subchecks']['4b.blaspp']['exports'] = dict(exp4)
+        _, ok = quiet_judge(ex, list(LANES), 'file', srcs, shas, both)
+        expect(ok, 'judge: unchanged exports rejected')
+        ex['4b']['subchecks']['4b.blaspp']['exports'] = dict(exp4, blaspp_libraries='-la;-lb;-lc;OpenMP::OpenMP_CXX')
+        _, ok = quiet_judge(ex, list(LANES), 'file', srcs, shas, both)
+        expect(not ok, 'judge: changed exported libraries accepted')
+        (srcs['blaspp'] / BASELINE_DIR / '4b.blaspp.json').unlink()
         stale = dict(base)
         stale['2'] = dict(base['2'], blaspp={'sha': 'c' * 40})
         _, ok = quiet_judge(stale, list(LANES), 'file', srcs, shas, both)
@@ -1693,6 +1916,49 @@ def cmd_selftest(a):
         (h / BASELINE_DIR / 'x.json').unlink()
         lo, _ = rules_loosened(b, h)
         expect(lo, 'loosen: deleted baseline missed')
+        (h / BASELINE_DIR / 'x.json').write_text((b / BASELINE_DIR / 'x.json').read_text())
+        ref = bl({'gesv [s]': 'pass', 'getrf [s]': 'pass'}, {'gesv [s]': {'n': 4}, 'getrf [s]': {'n': 6}})
+        for root in (b, h):
+            (root / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(ref))
+        lo, _ = rules_loosened(b, h)
+        expect(not lo, f'loosen: unchanged reference flagged: {lo}')
+        new = Path(h / BASELINE_DIR / '2.lapackpp.json')
+        new.write_text(json.dumps(bl({'gesv [s]': 'fail', 'getrf [s]': 'pass'},
+                                     {'gesv [s]': {'n': 4, 'exit': 1, 'rows': ['#1 s 1']}, 'getrf [s]': {'n': 6}})))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: new baseline recording a failure missed (probe A)')
+        new.write_text(json.dumps({'routines': {}, 'details': {}}))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: new empty baseline missed (probe B)')
+        new.write_text(json.dumps(bl({'gesv [s]': 'pass', 'getrf [s]': 'pass'}, {'gesv [s]': {'n': 0}, 'getrf [s]': {'n': 6}})))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: new baseline without result rows missed')
+        new.write_text(json.dumps(bl({'gesv [s]': 'pass', 'getrf [s]': 'pass', 'potrf [s]': 'pass'},
+                                     {'gesv [s]': {'n': 4}, 'getrf [s]': {'n': 6}, 'potrf [s]': {'n': 2}})))
+        lo, _ = rules_loosened(b, h)
+        expect(not lo, f'loosen: new passing baseline covering the reference flagged: {lo}')
+        new.unlink()
+        hx = json.loads((h / BASELINE_DIR / 'x.json').read_text())
+        hx['routines']['added [d]'] = 'fail'
+        (h / BASELINE_DIR / 'x.json').write_text(json.dumps(hx))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: failing routine added to an existing baseline missed (probe C)')
+        (h / BASELINE_DIR / 'x.json').write_text((b / BASELINE_DIR / 'x.json').read_text())
+        (h / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(
+            bl(ref['routines'], {'gesv [s]': {'n': 0}, 'getrf [s]': {'n': 6}})))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: baseline result rows dropping missed')
+        (b / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(dict(ref, exports={'v': 'a'})))
+        (h / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(dict(ref, exports={'v': 'b'})))
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: changed baseline exports missed')
+        (b / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(ref))
+        (h / BASELINE_DIR / '1-cmake.lapackpp.json').write_text(json.dumps(ref))
+        for root, text in ((b, 'a'), (h, 'b')):
+            (root / CI_FILES[0]).parent.mkdir(parents=True, exist_ok=True)
+            (root / CI_FILES[0]).write_text(text)
+        lo, _ = rules_loosened(b, h)
+        expect(lo, 'loosen: a ci.py change missed (M3)')
     if failures:
         for f in failures:
             print(f'SELFTEST FAILED: {f}')

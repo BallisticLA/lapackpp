@@ -1,9 +1,12 @@
 {
  "subcheck": "4a.lapackpp",
- "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39682102757",
+ "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39722395275",
  "blaspp": "f84bc922c837bd9728649befaf610799322a1e72",
- "lapackpp": "a7bfdb3bf6e0c56890b04cb9a76369c274f67ce3",
- "args": null,
+ "lapackpp": "98d0430fd14bc4bb5409f1b98900d037274b5e4d",
+ "args": [
+  "--quick",
+  "--host"
+ ],
  "routines": {
   "gesv [s,d,c,z]": "pass",
   "gesvx [s,d,c,z]": "pass",
@@ -181,5 +184,531 @@
   "lanht [s,d,c,z]": "pass",
   "lanst [s,d,c,z]": "pass"
  },
- "details": {}
+ "details": {
+  "gesv [s,d,c,z]": {
+   "n": 4
+  },
+  "gesvx [s,d,c,z]": {
+   "n": 36
+  },
+  "getrf [s,d,c,z]": {
+   "n": 4
+  },
+  "getrs [s,d,c,z]": {
+   "n": 12
+  },
+  "getri [s,d,c,z]": {
+   "n": 4
+  },
+  "gecon [s,d,c,z]": {
+   "n": 4
+  },
+  "gerfs [s,d,c,z]": {
+   "n": 12
+  },
+  "geequ [s,d,c,z]": {
+   "n": 4
+  },
+  "gbsv [s,d,c,z]": {
+   "n": 16
+  },
+  "gbtrf [s,d,c,z]": {
+   "n": 48
+  },
+  "gbtrs [s,d,c,z]": {
+   "n": 48
+  },
+  "gbcon [s,d,c,z]": {
+   "n": 16
+  },
+  "gbrfs [s,d,c,z]": {
+   "n": 48
+  },
+  "gbequ [s,d,c,z]": {
+   "n": 16
+  },
+  "gtsv [s,d,c,z]": {
+   "n": 4
+  },
+  "gttrf [s,d,c,z]": {
+   "n": 4
+  },
+  "gttrs [s,d,c,z]": {
+   "n": 12
+  },
+  "gtcon [s,d,c,z]": {
+   "n": 4
+  },
+  "gtrfs [s,d,c,z]": {
+   "n": 12
+  },
+  "posv [s,d,c,z]": {
+   "n": 8
+  },
+  "potrf [s,d,c,z]": {
+   "n": 8
+  },
+  "potrs [s,d,c,z]": {
+   "n": 8
+  },
+  "potri [s,d,c,z]": {
+   "n": 8
+  },
+  "pocon [s,d,c,z]": {
+   "n": 8
+  },
+  "porfs [s,d,c,z]": {
+   "n": 8
+  },
+  "poequ [s,d,c,z]": {
+   "n": 4
+  },
+  "ppsv [s,d,c,z]": {
+   "n": 8
+  },
+  "pptrf [s,d,c,z]": {
+   "n": 8
+  },
+  "pptrs [s,d,c,z]": {
+   "n": 8
+  },
+  "pptri [s,d,c,z]": {
+   "n": 8
+  },
+  "ppcon [s,d,c,z]": {
+   "n": 8
+  },
+  "pprfs [s,d,c,z]": {
+   "n": 8
+  },
+  "ppequ [s,d,c,z]": {
+   "n": 8
+  },
+  "pbsv [s,d,c,z]": {
+   "n": 16
+  },
+  "pbtrf [s,d,c,z]": {
+   "n": 16
+  },
+  "pbtrs [s,d,c,z]": {
+   "n": 16
+  },
+  "pbcon [s,d,c,z]": {
+   "n": 16
+  },
+  "pbrfs [s,d,c,z]": {
+   "n": 16
+  },
+  "pbequ [s,d,c,z]": {
+   "n": 16
+  },
+  "ptsv [s,d,c,z]": {
+   "n": 4
+  },
+  "pttrf [s,d,c,z]": {
+   "n": 4
+  },
+  "pttrs [s,d,c,z]": {
+   "n": 8
+  },
+  "ptcon [s,d,c,z]": {
+   "n": 4
+  },
+  "ptrfs [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrf [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrs [s,d,c,z]": {
+   "n": 8
+  },
+  "sytri [s,d,c,z]": {
+   "n": 8
+  },
+  "sycon [s,d,c,z]": {
+   "n": 8
+  },
+  "syrfs [s,d,c,z]": {
+   "n": 8
+  },
+  "spsv [s,d,c,z]": {
+   "n": 8
+  },
+  "sptrf [s,d,c,z]": {
+   "n": 8
+  },
+  "sptrs [s,d,c,z]": {
+   "n": 8
+  },
+  "sptri [s,d,c,z]": {
+   "n": 8
+  },
+  "spcon [s,d,c,z]": {
+   "n": 8
+  },
+  "sprfs [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv_rook [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrf_rook [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrs_rook [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv_rk [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrf_rk [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv_aa [s,d,c,z]": {
+   "n": 0
+  },
+  "sytrf_aa [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrs_aa [s,d,c,z]": {
+   "n": 8
+  },
+  "hesv [s,d,c,z]": {
+   "n": 8
+  },
+  "hetrf [s,d,c,z]": {
+   "n": 8
+  },
+  "hetrs [s,d,c,z]": {
+   "n": 8
+  },
+  "hetri [s,d,c,z]": {
+   "n": 8
+  },
+  "hecon [s,d,c,z]": {
+   "n": 8
+  },
+  "herfs [s,d,c,z]": {
+   "n": 8
+  },
+  "hpsv [s,d,c,z]": {
+   "n": 8
+  },
+  "hptrf [s,d,c,z]": {
+   "n": 8
+  },
+  "hptrs [s,d,c,z]": {
+   "n": 8
+  },
+  "hptri [s,d,c,z]": {
+   "n": 8
+  },
+  "hpcon [s,d,c,z]": {
+   "n": 8
+  },
+  "hprfs [s,d,c,z]": {
+   "n": 8
+  },
+  "gels [s,d,c,z]": {
+   "n": 24
+  },
+  "gelsy [s,d,c,z]": {
+   "n": 12
+  },
+  "gelss [s,d,c,z]": {
+   "n": 12
+  },
+  "getsls [s,d,c,z]": {
+   "n": 24
+  },
+  "gglse [s,d,c,z]": {
+   "n": 12
+  },
+  "geqr [s,d,c,z]": {
+   "n": 12
+  },
+  "geqrf [s,d,c,z]": {
+   "n": 12
+  },
+  "ungqr [s,d,c,z]": {
+   "n": 8
+  },
+  "orhr_col [s,d]": {
+   "n": 0
+  },
+  "unhr_col [s,d,c,z]": {
+   "n": 0
+  },
+  "gemqrt [s,d]": {
+   "n": 12
+  },
+  "gemqrt [c,z]": {
+   "n": 8
+  },
+  "tpqrt [s,d,c,z]": {
+   "n": 36
+  },
+  "tpqrt2 [s,d,c,z]": {
+   "n": 36
+  },
+  "tpmqrt [s,d]": {
+   "n": 108
+  },
+  "tpmqrt [c,z]": {
+   "n": 72
+  },
+  "gelqf [s,d,c,z]": {
+   "n": 12
+  },
+  "unglq [s,d,c,z]": {
+   "n": 4
+  },
+  "tplqt [s,d,c,z]": {
+   "n": 36
+  },
+  "tplqt2 [s,d,c,z]": {
+   "n": 36
+  },
+  "tpmlqt [s,d]": {
+   "n": 108
+  },
+  "tpmlqt [c,z]": {
+   "n": 72
+  },
+  "geqlf [s,d,c,z]": {
+   "n": 12
+  },
+  "ungql [s,d,c,z]": {
+   "n": 8
+  },
+  "gerqf [s,d,c,z]": {
+   "n": 12
+  },
+  "ungrq [s,d,c,z]": {
+   "n": 4
+  },
+  "heev [s,d,c,z]": {
+   "n": 16
+  },
+  "heevx [s,d,c,z]": {
+   "n": 32
+  },
+  "heevx [s,d,c,z] #2": {
+   "n": 32
+  },
+  "heevd [s,d,c,z]": {
+   "n": 16
+  },
+  "heevr [s,d,c,z]": {
+   "n": 32
+  },
+  "heevr [s,d,c,z] #2": {
+   "n": 32
+  },
+  "hetrd [s,d,c,z]": {
+   "n": 8
+  },
+  "lae2 [s,d]": {
+   "n": 10
+  },
+  "laev2 [s,d,c,z]": {
+   "n": 20
+  },
+  "ungtr [s,d,c,z]": {
+   "n": 8
+  },
+  "unmtr [s,d]": {
+   "n": 72
+  },
+  "unmtr [c,z]": {
+   "n": 48
+  },
+  "hpev [s,d,c,z]": {
+   "n": 16
+  },
+  "hpevx [s,d,c,z]": {
+   "n": 32
+  },
+  "hpevx [s,d,c,z] #2": {
+   "n": 32
+  },
+  "hpevd [s,d,c,z]": {
+   "n": 16
+  },
+  "hptrd [s,d,c,z]": {
+   "n": 8
+  },
+  "upgtr [s,d,c,z]": {
+   "n": 8
+  },
+  "upmtr [s,d,c,z]": {
+   "n": 96
+  },
+  "hbev [s,d,c,z]": {
+   "n": 16
+  },
+  "hbevx [s,d,c,z]": {
+   "n": 32
+  },
+  "hbevx [s,d,c,z] #2": {
+   "n": 32
+  },
+  "hbevd [s,d,c,z]": {
+   "n": 16
+  },
+  "hegv [s,d,c,z]": {
+   "n": 48
+  },
+  "hegvx [s,d,c,z]": {
+   "n": 96
+  },
+  "hegvx [s,d,c,z] #2": {
+   "n": 96
+  },
+  "hegvd [s,d,c,z]": {
+   "n": 48
+  },
+  "hegst [s,d,c,z]": {
+   "n": 24
+  },
+  "hpgv [s,d,c,z]": {
+   "n": 48
+  },
+  "hpgvx [s,d,c,z]": {
+   "n": 96
+  },
+  "hpgvx [s,d,c,z] #2": {
+   "n": 96
+  },
+  "hpgvd [s,d,c,z]": {
+   "n": 48
+  },
+  "hpgst [s,d,c,z]": {
+   "n": 24
+  },
+  "hbgv [s,d,c,z]": {
+   "n": 48
+  },
+  "hbgvx [s,d,c,z]": {
+   "n": 96
+  },
+  "hbgvx [s,d,c,z] #2": {
+   "n": 96
+  },
+  "hbgvd [s,d,c,z]": {
+   "n": 48
+  },
+  "geev [s,d,c,z]": {
+   "n": 16
+  },
+  "gehrd [s,d,c,z]": {
+   "n": 4
+  },
+  "unghr [s,d,c,z]": {
+   "n": 4
+  },
+  "unmhr [s,d]": {
+   "n": 36
+  },
+  "unmhr [c,z]": {
+   "n": 24
+  },
+  "tgexc [s,d,c,z]": {
+   "n": 16
+  },
+  "tgsen [s,d,c,z]": {
+   "n": 96
+  },
+  "gesvd [s,d,c,z]": {
+   "n": 96
+  },
+  "gesvd [s,d,c,z] #2": {
+   "n": 24
+  },
+  "gesdd [s,d,c,z]": {
+   "n": 48
+  },
+  "lacpy [s,d,c,z]": {
+   "n": 36
+  },
+  "laed4 [s,d]": {
+   "n": 2
+  },
+  "laset [s,d,c,z]": {
+   "n": 36
+  },
+  "laswp [s,d,c,z]": {
+   "n": 12
+  },
+  "larfg [s,d,c,z]": {
+   "n": 4
+  },
+  "larfgp [s,d,c,z]": {
+   "n": 0
+  },
+  "larf [s,d,c,z]": {
+   "n": 48
+  },
+  "larfx [s,d,c,z]": {
+   "n": 24
+  },
+  "larfy [s,d,c,z]": {
+   "n": 8
+  },
+  "larfb [s,d,c,z]": {
+   "n": 200
+  },
+  "larft [s,d,c,z]": {
+   "n": 32
+  },
+  "lasr [s,d,c,z]": {
+   "n": 144
+  },
+  "lange [s,d,c,z]": {
+   "n": 48
+  },
+  "lansy [s,d,c,z]": {
+   "n": 32
+  },
+  "lantr [s,d,c,z]": {
+   "n": 192
+  },
+  "lanhs [s,d,c,z]": {
+   "n": 16
+  },
+  "lanhp [s,d,c,z]": {
+   "n": 32
+  },
+  "lansp [s,d,c,z]": {
+   "n": 32
+  },
+  "lantp [s,d,c,z]": {
+   "n": 64
+  },
+  "langb [s,d,c,z]": {
+   "n": 192
+  },
+  "lanhb [s,d,c,z]": {
+   "n": 64
+  },
+  "lansb [s,d,c,z]": {
+   "n": 64
+  },
+  "lantb [s,d,c,z]": {
+   "n": 128
+  },
+  "langt [s,d,c,z]": {
+   "n": 16
+  },
+  "lanht [s,d,c,z]": {
+   "n": 16
+  },
+  "lanst [s,d,c,z]": {
+   "n": 8
+  }
+ }
 }

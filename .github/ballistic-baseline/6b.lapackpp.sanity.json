@@ -1,12 +1,22 @@
 {
  "subcheck": "6b.lapackpp.sanity",
- "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39682102757",
+ "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39722395275",
  "blaspp": "f84bc922c837bd9728649befaf610799322a1e72",
- "lapackpp": "a7bfdb3bf6e0c56890b04cb9a76369c274f67ce3",
- "args": null,
+ "lapackpp": "98d0430fd14bc4bb5409f1b98900d037274b5e4d",
+ "args": [
+  "--quick",
+  "gemqrt"
+ ],
  "routines": {
   "gemqrt [s,d]": "pass",
   "gemqrt [c,z]": "pass"
  },
- "details": {}
+ "details": {
+  "gemqrt [s,d]": {
+   "n": 12
+  },
+  "gemqrt [c,z]": {
+   "n": 8
+  }
+ }
 }

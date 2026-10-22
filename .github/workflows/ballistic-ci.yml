@@ -89,6 +89,7 @@ jobs:
           - { lane: 5b, apt: libopenblas-dev liblapacke-dev }
           - { lane: '6', apt: libopenblas-dev liblapacke-dev, conda: local }
           - { lane: 6b, apt: libopenblas-dev liblapacke-dev }
+          - { lane: '9', apt: libopenblas-dev liblapacke-dev }
     env:
       BCI_BLASPP_URL: ${{ needs.resolve.outputs.blaspp_url }}
       BCI_BLASPP_SHA: ${{ needs.resolve.outputs.blaspp_sha }}
@@ -112,8 +113,13 @@ jobs:
             sudo add-apt-repository -y multiverse
             echo "libmkl-rt libmkl-rt/use-as-default-blas-lapack boolean false" | sudo debconf-set-selections
           fi
-          sudo apt-get update -q
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q ${{ matrix.apt }}
+          for attempt in 1 2 3; do
+            sudo apt-get -o Acquire::Retries=5 update -q \
+              && sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y -q ${{ matrix.apt }} \
+              && break
+            [ $attempt = 3 ] && exit 1
+            sleep 20
+          done
 
       - name: cblas.h for the ILP64 OpenBLAS
         if: matrix.cpath == 'openblas64'
@@ -130,6 +136,7 @@ jobs:
         if: matrix.conda
         uses: mamba-org/setup-micromamba@add3a49764cedee8ee24e82dfde87f5bc2914462  # v2
         with:
+          micromamba-version: 2.9.0-0
           environment-name: blas
           create-args: openblas-ilp64=0.3.34 libopenblas-ilp64=0.3.34
           condarc: |
@@ -314,7 +321,11 @@ jobs:
           retention-days: 30
 
   check:
-    name: check expectations
+    # The merge gate's required status is "check expectations". Only a
+    # pull_request run may report under that name: a push or dispatch run on
+    # the same commit has no base comparison and may test other commits of the
+    # other fork, so it reports as "check expectations (<event>)".
+    name: ${{ github.event_name == 'pull_request' && 'check expectations' || format('check expectations ({0})', github.event_name) }}
     needs: [resolve, linux, macos, windows]
     if: always()
     runs-on: ubuntu-24.04
