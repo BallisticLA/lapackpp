@@ -10,17 +10,18 @@
 # Save the normalized list in the cache, so re-passing the same value
 # doesn't redo the search, and unset any normal variable that shadows it.
 set( lapack_libraries_in_ ${LAPACK_LIBRARIES} )  # Not "quoted"; also splits on \;
-set( lapack_libraries_ "" )
+set( lapack_libraries_normalized_ "" )
 foreach (entry_ IN LISTS lapack_libraries_in_)
     string( STRIP "${entry_}" entry_ )
     if (NOT EXISTS "${entry_}")
         string( REGEX REPLACE " +" ";" entry_ "${entry_}" )
     endif()
-    list( APPEND lapack_libraries_ ${entry_} )  # Not "quoted"; drops empty entries.
+    list( APPEND lapack_libraries_normalized_ ${entry_} )  # Not "quoted"; drops empty entries.
 endforeach()
-string( REGEX REPLACE "-framework;" "-framework " lapack_libraries_ "${lapack_libraries_}" )
-if (NOT "${lapack_libraries_}" STREQUAL "$CACHE{LAPACK_LIBRARIES}")
-    set( LAPACK_LIBRARIES "${lapack_libraries_}" CACHE STRING "" FORCE )
+string( REGEX REPLACE "-framework;" "-framework "
+        lapack_libraries_normalized_ "${lapack_libraries_normalized_}" )
+if (NOT "${lapack_libraries_normalized_}" STREQUAL "$CACHE{LAPACK_LIBRARIES}")
+    set( LAPACK_LIBRARIES "${lapack_libraries_normalized_}" CACHE STRING "" FORCE )
 endif()
 unset( LAPACK_LIBRARIES )
 
