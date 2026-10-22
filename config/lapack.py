@@ -319,6 +319,21 @@ def blas():
     #-------------------- OpenBLAS
     if (test_openblas):
         choices.append( ['OpenBLAS', {'LIBS': '-lopenblas'}])
+        if (test_int64):
+            # Debian/Ubuntu ship the ILP64 build as libopenblas64, with
+            # standard (unsuffixed) dgemm_ symbols, so it needs only the
+            # -lopenblas64 name.
+            choices.append( ['OpenBLAS (ILP64, -lopenblas64)',
+                             {'LIBS': '-lopenblas64'}])
+        # OpenBLAS built with SYMBOLSUFFIX (e.g. conda-forge's libopenblas64_,
+        # exporting dgemm_64_) needs both the suffixed name and the matching
+        # LAPACK_FORTRAN_SUFFIX so the mangling appends _64_ to its calls.
+        lapack_symbol_suffix = config.environ['lapack_symbol_suffix']
+        if (lapack_symbol_suffix):
+            choices.append(
+                ['OpenBLAS (symbol suffix ' + lapack_symbol_suffix + ')',
+                 {'LIBS': '-lopenblas' + lapack_symbol_suffix,
+                  'CXXFLAGS': define( 'FORTRAN_SUFFIX', lapack_symbol_suffix )}])
 
     #-------------------- BLIS (also used by AMD AOCL)
     if (test_blis):
@@ -500,7 +515,8 @@ def lapack():
 def lapacke():
     '''
     Search for LAPACKE in existing BLAS/LAPACK libraries,
-    found with blas() and lapack(), then in -llapacke.
+    found with blas() and lapack(), then in -llapacke64 (ILP64 only)
+    and -llapacke.
     '''
     print_header( 'LAPACKE library' )
     choices = [
@@ -508,6 +524,11 @@ def lapacke():
         ['LAPACKE (LAPACKE_dpstrf) in -llapacke',
             {'LIBS': '-llapacke'}],
     ]
+    # For ILP64, try -llapacke64, as Debian/Ubuntu ship it, before -llapacke.
+    if (re.search( r'_ILP64\b', config.environ['CXXFLAGS'] )):
+        choices.insert( 1,
+            ['LAPACKE (LAPACKE_dpstrf) in -llapacke64',
+             {'LIBS': '-llapacke64'}] )
 
     passed = []
     for (label, env) in choices:

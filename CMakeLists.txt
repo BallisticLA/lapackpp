@@ -106,6 +106,9 @@ set_property(
     CACHE lapack PROPERTY STRINGS
     "auto" "generic" )
 
+set( lapack_symbol_suffix "" CACHE STRING
+     "Suffix appended to LAPACK symbol names after Fortran mangling, e.g. '64_' for OpenBLAS built with INTERFACE64=1 SYMBOLSUFFIX=64_. Empty (default) preserves existing behavior. BLAS++'s blas_symbol_suffix is honored automatically; set this only if LAPACK symbols carry a different suffix." )
+
 message( DEBUG "Settings:
 CMAKE_VERSION          = ${CMAKE_VERSION}
 CMAKE_INSTALL_PREFIX   = ${CMAKE_INSTALL_PREFIX}
@@ -113,6 +116,7 @@ CMAKE_BUILD_TYPE       = ${CMAKE_BUILD_TYPE}
 BUILD_SHARED_LIBS      = ${BUILD_SHARED_LIBS}
 BLA_VENDOR             = ${BLA_VENDOR}
 lapack                 = ${lapack}
+lapack_symbol_suffix   = ${lapack_symbol_suffix}
 build_tests            = ${build_tests}
 color                  = ${color}
 use_cmake_find_lapack  = ${use_cmake_find_lapack}
