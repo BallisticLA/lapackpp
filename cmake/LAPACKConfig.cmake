@@ -4,9 +4,13 @@
 # the terms of the BSD 3-Clause license. See the accompanying LICENSE file.
 
 # Check if this file has already been run with these settings (see bottom).
+# The probes also depend on BLAS++, which LAPACKFinder checks only when it
+# runs (not with CMake's FindLAPACK).
 if (DEFINED lapack_config_cache
     AND DEFINED lapack_config_defs_cache
-    AND "${lapack_config_cache}" STREQUAL "${LAPACK_LIBRARIES}")
+    AND "${lapack_config_cache}" STREQUAL "${LAPACK_LIBRARIES}"
+    AND "${lapack_config_blaspp_libraries_cache}" STREQUAL "${blaspp_libraries}"
+    AND "${lapack_config_blaspp_defines_cache}"   STREQUAL "${blaspp_defines}")
 
     message( DEBUG "LAPACK config already done for '${LAPACK_LIBRARIES}'" )
     # Restore defines found in the previous run (see bottom).
@@ -133,6 +137,8 @@ set( lapack_config_defs_cache "${defs_}" CACHE INTERNAL "" )
 
 # Mark as already run (see top).
 set( lapack_config_cache "${LAPACK_LIBRARIES}" CACHE INTERNAL "" )
+set( lapack_config_blaspp_libraries_cache "${blaspp_libraries}" CACHE INTERNAL "" )
+set( lapack_config_blaspp_defines_cache   "${blaspp_defines}"   CACHE INTERNAL "" )
 
 #-------------------------------------------------------------------------------
 message( DEBUG "

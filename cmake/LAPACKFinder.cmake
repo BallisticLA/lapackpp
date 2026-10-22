@@ -158,7 +158,13 @@ endforeach()
 set( lapack_libraries_cached ${LAPACK_LIBRARIES} CACHE INTERNAL "" )
 set( lapack_blaspp_libraries_cached "${blaspp_libraries}" CACHE INTERNAL "" )
 set( lapack_blaspp_defines_cached   "${blaspp_defines}"   CACHE INTERNAL "" )
-set( lapack_defs_cached             "${lapackpp_defs_}"   CACHE INTERNAL "" )
+# Without saved defines, the search is not skipped next time, even if
+# LAPACK_FOUND is set elsewhere (e.g., by BLAS++'s LAPACKFinder in SLATE).
+if (LAPACK_FOUND)
+    set( lapack_defs_cached "${lapackpp_defs_}" CACHE INTERNAL "" )
+else()
+    unset( lapack_defs_cached CACHE )
+endif()
 
 #-------------------------------------------------------------------------------
 if (LAPACK_FOUND)
