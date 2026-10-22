@@ -48,4 +48,4 @@
 
 # L2F1, fork-only fixup of L2: LAPACKConfig probes with a LAPACK suffix
 # different from BLAS++'s.
-10.lapackpp.defines: xfail:L2F1
+10.lapackpp.defines: pass
