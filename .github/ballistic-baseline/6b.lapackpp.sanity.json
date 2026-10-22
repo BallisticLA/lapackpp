@@ -1,8 +1,8 @@
 {
  "subcheck": "6b.lapackpp.sanity",
- "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39722395275",
+ "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39728446200",
  "blaspp": "f84bc922c837bd9728649befaf610799322a1e72",
- "lapackpp": "98d0430fd14bc4bb5409f1b98900d037274b5e4d",
+ "lapackpp": "66e31808a1f0438758a35c6870f662ce8c30cd9e",
  "args": [
   "--quick",
   "gemqrt"

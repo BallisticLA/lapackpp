@@ -43,3 +43,7 @@
 # L4 (upstream PR to be opened): a re-configure drops LAPACK++ defines.
 6.lapackpp.option: xfail:L4
 6.lapackpp.failed-then-fixed: xfail:L4
+
+# L2F1, fork-only fixup of L2: LAPACK suffix different from BLAS++'s.
+10.lapackpp.configure: xfail:L2F1
+10.lapackpp.defines: xfail:L2F1

@@ -90,6 +90,7 @@ jobs:
           - { lane: '6', apt: libopenblas-dev liblapacke-dev, conda: local }
           - { lane: 6b, apt: libopenblas-dev liblapacke-dev }
           - { lane: '9', apt: libopenblas-dev liblapacke-dev }
+          - { lane: '10', apt: libblas-dev liblapack-dev gfortran }
     env:
       BCI_BLASPP_URL: ${{ needs.resolve.outputs.blaspp_url }}
       BCI_BLASPP_SHA: ${{ needs.resolve.outputs.blaspp_sha }}

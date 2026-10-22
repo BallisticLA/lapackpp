@@ -31,6 +31,7 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 | L2 | [#91](https://github.com/icl-utk-edu/lapackpp/pull/91) (Riley Murray): `lapack_symbol_suffix` for symbol-suffixed ILP64 OpenBLAS | `1f85c68ec3bdfc7be4d6f72daa4443c764f1da5a` | `239f3e7189e366fbc1cc65416fb30eb74478bacf` | - | pending |
 | L3 | PR to be opened: `gemqrt` with m = 0 or n = 0 takes `&work[0]` of an empty `std::vector` | - | - | - | pending |
 | L4 | PR to be opened: a re-configure drops `LAPACK_VERSION`, `LAPACK_HAVE_LAPACKE` and other defines | - | - | - | pending |
+| L2F1 | none (fork-only `fixup(lapackpp#91)`): with a LAPACK suffix different from BLAS++'s, LAPACK++'s version and other probes must use the LAPACK suffix | - | - | - | pending |
 
 States: `pending` (not in `main`), `carried` (merged into `main` through its
 fork PR), `upstream` (merged upstream; still carried until a release has it),
@@ -137,6 +138,7 @@ one both libraries name); make builds use the same checkout.
 | 8a | windows-2022 | MSVC; oneMKL ILP64 from Intel's NuGet packages (pinned; SHA256-checked when downloaded, then cached), import libraries copied into a directory `intel mkl`, given to BLAS++ as `BLAS_LIBRARIES` | `.blaspp`, `.lapackpp` (B1) |
 | 8b | windows-2022 | the same libraries at a path without spaces; LAPACK++ found in them, and LAPACK++ given the spaced copies as `LAPACK_LIBRARIES` | `.blaspp`, `.lapackpp`; `.lapackpp.spaced` (L1) |
 | 9 | ubuntu-24.04 | apt OpenBLAS; `LAPACK_LIBRARIES` for both libraries as an absolute path plus a flag in one space-separated string, and as bare names (`openblas m`); a re-configure re-passing the same value must not search for LAPACK again | `.blaspp.space-path`, `.lapackpp.space-path`, `.blaspp.bare-names`, `.lapackpp.bare-names`, `.blaspp.rerun`, `.lapackpp.rerun`; `.blaspp.rerun-identical` (B2a) |
+| 10 | ubuntu-24.04 | reference BLAS (unsuffixed) for BLAS++, with only the reference LAPACK routines it needs; LAPACK++ given the reference LAPACK with every symbol renamed `<name>x_` and `lapack_symbol_suffix=x_` (static builds) | `.lapackpp.configure`, `.lapackpp.defines` (L2F1) |
 
 Lane 6 scenarios: `identical` re-runs the same configure (BLAS++ also builds
 LAPACK++ against the re-configured install); `fortran` changes `blas_fortran`;
@@ -204,10 +206,11 @@ Each of these fails the check unless the PR carries the label
 **Baseline.** The F0 pull request's first runs on unmodified upstream master
 ([BLAS++](https://github.com/BallisticLA/blaspp/actions/runs/39682095446),
 [LAPACK++](https://github.com/BallisticLA/lapackpp/actions/runs/39682102757))
-established the baselines; the stored files were last regenerated from runs
-[39722392134](https://github.com/BallisticLA/blaspp/actions/runs/39722392134)
-and [39722395275](https://github.com/BallisticLA/lapackpp/actions/runs/39722395275)
-of the same commits, with row counts. Two findings: `rotg` fails with Ubuntu
+established the baselines; the stored files were last regenerated, with
+result-row counts and lane 4's exports, from runs
+[39728443275](https://github.com/BallisticLA/blaspp/actions/runs/39728443275)
+and [39728446200](https://github.com/BallisticLA/lapackpp/actions/runs/39728446200)
+on the same upstream library code. Two findings: `rotg` fails with Ubuntu
 24.04's OpenBLAS 0.3.26 in three complex rows (c n=500, z n=200, z n=300;
 lanes 1-cmake, 1-make and 2; recorded as a known failure), and upstream
 LAPACK++ does not find LAPACKE for unsuffixed ILP64 OpenBLAS, so lane 2's

@@ -41,6 +41,7 @@ TESTSWEEPER = ('https://github.com/icl-utk-edu/testsweeper.git',
 PATCHES = {
     'B1': 'blaspp', 'B2a': 'blaspp', 'B2b': 'blaspp',
     'L1': 'lapackpp', 'L2': 'lapackpp', 'L3': 'lapackpp', 'L4': 'lapackpp',
+    'L2F1': 'lapackpp',  # fork-only fixup of L2 (lapackpp#91)
 }
 
 EXPECTATIONS = '.github/ballistic-expectations.yml'
@@ -115,6 +116,11 @@ LANES = collections.OrderedDict([
         ('9.blaspp.rerun', None, NONE), ('9.blaspp.rerun-identical', 'B2a', NONE),
         ('9.lapackpp.rerun', None, NONE),
     ])),
+    # 10: a LAPACK whose symbols carry a suffix BLAS++'s BLAS does not:
+    # reference BLAS unsuffixed, reference LAPACK with every symbol renamed
+    # <name>x_, LAPACK++ given lapack_symbol_suffix=x_. Needs L2 and its
+    # fork fixup L2F1 (LAPACK_VERSION is probed with the LAPACK suffix).
+    ('10', ('linux', [('10.lapackpp.configure', 'L2F1', NONE), ('10.lapackpp.defines', 'L2F1', NONE)])),
 ])
 
 SUB = collections.OrderedDict()
@@ -1016,8 +1022,99 @@ def recipe(r):
         lagain = [f'-DLAPACK_LIBRARIES={space}']
         r.reconfigure('9.lapackpp.rerun', 'lapackpp', [(lagain, 'ok'), (lagain, 'ok', lapack_not_redetected)],
                       lagain, deps=[bp], defines=['LAPACK_HAVE_LAPACK', 'LAPACK_VERSION', 'LAPACK_HAVE_LAPACKE'])
+    elif lane == '10':
+        lapack_suffix_lane(r)
     else:
         raise RuntimeError(f'no recipe for lane {lane}')
+
+
+def lib_file(name):
+    found = subprocess.run(['gcc', f'-print-file-name={name}'], capture_output=True, text=True).stdout.strip()
+    if not os.path.isabs(found):
+        raise RuntimeError(f'{name} not found')
+    return os.path.realpath(found)
+
+
+def lapack_suffix_lane(r):
+    """Lane 10. BLAS++ (static) gets the reference BLAS and, because it needs
+    a few LAPACK routines (and probes pstrf), only those archive members of
+    the reference LAPACK, unsuffixed: no ilaver_ among them. LAPACK++ (static)
+    gets the reference LAPACK with every symbol it defines renamed <name>x_
+    (dpstrf_x_, ilaver_x_, ...) and lapack_symbol_suffix=x_. It must find
+    that library (defines.h has LAPACK_FORTRAN_SUFFIX) and its version
+    (LAPACK_VERSION, probed through ilaver_x_)."""
+    work = r.work / 'lapack-suffix'
+    shutil.rmtree(work, ignore_errors=True)
+    (work / 'min').mkdir(parents=True)
+    lapack_a, blas_so = lib_file('liblapack.a'), lib_file('libblas.so')
+    log = r.logs / '10-libraries.log'
+    r.group('lane 10: suffixed and minimal LAPACK archives')
+    nm = subprocess.run(['nm', '--defined-only', '-g', lapack_a], capture_output=True, text=True).stdout
+    syms = sorted({ln.split()[-1] for ln in nm.splitlines() if len(ln.split()) == 3})
+    (work / 'rename.txt').write_text(''.join(f'{x} {x}x_\n' for x in syms))
+    suffixed = work / 'liblapack_x.a'
+    if run(['objcopy', f'--redefine-syms={work / "rename.txt"}', lapack_a, suffixed], log) != 0:
+        raise RuntimeError('objcopy failed')
+    needed = ['dpstrf_', 'crot_', 'zrot_', 'csymv_', 'zsymv_', 'csyr_', 'zsyr_']
+    (work / 'probe.c').write_text(''.join(f'extern void {n}(void);\n' for n in needed)
+                                  + 'int main(void) {\n' + ''.join(f'    {n}();\n' for n in needed) + '    return 0;\n}\n')
+    trace = subprocess.run(['gcc', str(work / 'probe.c'), '-o', str(work / 'probe'), '-Wl,--trace', lapack_a,
+                            blas_so, '-lgfortran', '-lm'], capture_output=True, text=True)
+    members = sorted(set(re.findall(re.escape(lapack_a) + r'\((\S+\.o)\)', trace.stdout + trace.stderr)))
+    if trace.returncode != 0 or not members:
+        raise RuntimeError(f'cannot pick the LAPACK members BLAS++ needs: {trace.stderr[-500:]}')
+    run(['ar', 'x', lapack_a, *members], log, cwd=work / 'min')
+    minimal = work / 'liblapack_min.a'
+    run(['ar', 'rcs', minimal, *members], log, cwd=work / 'min')
+    have = lambda a: set(subprocess.run(['nm', '--defined-only', '-g', str(a)], capture_output=True,
+                                        text=True).stdout.split())
+    hx, hm = have(suffixed), have(minimal)
+    sane = {'dpstrf_x_', 'ilaver_x_'} <= hx and 'dpstrf_' not in hx and 'dpstrf_' in hm and 'ilaver_' not in hm
+    print(f'{len(syms)} LAPACK symbols renamed <name>x_; BLAS++ gets {len(members)} unsuffixed members '
+          f'({", ".join(members[:8])}{", ..." if len(members) > 8 else ""}); sane: {sane}')
+    r.endgroup()
+    if not sane:
+        raise RuntimeError('the suffixed or minimal LAPACK archive is not as intended')
+    static = ['-DBUILD_SHARED_LIBS=OFF', '-Dgpu_backend=none']
+    bp = r.cmake_lib(None, 'blaspp', '10-blaspp', static + [
+        f'-DBLAS_LIBRARIES={blas_so}', f'-DLAPACK_LIBRARIES={minimal};-lgfortran;-lm', '-Dblas_int=int32'],
+        consumer=False)
+    k1, k2 = '10.lapackpp.configure', '10.lapackpp.defines'
+    if bp is None:
+        r.blocked(k1, ['configure'], 'BLAS++ build failed')
+        r.blocked(k2, ['version'], 'BLAS++ build failed')
+        return
+    tree = r.work / 'build' / '10-lapackpp'
+    shutil.rmtree(tree, ignore_errors=True)
+    r.group(f'{k1}: LAPACK++ with lapack_symbol_suffix=x_')
+    t0 = time.time()
+    rc = r.sh(['cmake', '-S', r.src['lapackpp'], '-B', tree, *r.gen, '-DCMAKE_BUILD_TYPE=Release', '-Dcolor=no',
+               '-Dbuild_tests=no', *static, '-Dlapack_symbol_suffix=x_',
+               f'-DLAPACK_LIBRARIES={suffixed};-lgfortran;-lm', f'-DCMAKE_PREFIX_PATH={bp}'],
+              f'{k1}.configure', echo=True)
+    text = (r.logs / f'{k1}.configure.log').read_text(encoding='utf-8', errors='replace')
+    why = ''
+    if re.search(r'not used by the project:\s*\n\s*lapack_symbol_suffix', text):
+        why = 'this LAPACK++ has no lapack_symbol_suffix option (L2 is not in main)'
+    r.endgroup()
+    r.phase(k1, 'configure', rc == 0, why or ('' if rc == 0 else 'configure failed'), t0)
+    if rc != 0:
+        r.blocked(k2, ['version'], 'configure failed' + (f': {why}' if why else ''))
+        return
+    defines = (tree / FILES['lapackpp'][0]).read_text(encoding='utf-8', errors='replace')
+    has = lambda n: re.search(r'#define\s+' + n + r'\b', defines) is not None
+    r.phase(k1, 'suffixed', has('LAPACK_FORTRAN_SUFFIX'),
+            '' if has('LAPACK_FORTRAN_SUFFIX') else
+            'defines.h has no LAPACK_FORTRAN_SUFFIX: LAPACK was not found as the suffixed library'
+            + (f' ({why})' if why else ''))
+    r.phase(k2, 'version', has('LAPACK_VERSION'),
+            '' if has('LAPACK_VERSION') else 'defines.h has no LAPACK_VERSION: the version probe did not use '
+            'the LAPACK suffix' + (f' ({why})' if why else ''))
+    t0 = time.time()
+    ok = r.sh(['cmake', '--build', tree, '--target', 'lapackpp', '--parallel', r.jobs], f'{k1}.build') == 0
+    if not ok:
+        print(tail(r.logs / f'{k1}.build.log', 60))
+    r.phase(k1, 'build', ok, '' if ok else 'LAPACK++ library build failed', t0)
 
 
 def zero_dims(r, key, built, test_dir):
