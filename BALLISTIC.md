@@ -28,7 +28,7 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 | ID | Upstream | Head | Tree | Fork PR | State |
 |---|---|---|---|---|---|
 | L1 | [#92](https://github.com/icl-utk-edu/lapackpp/pull/92): `LAPACK_LIBRARIES` paths with spaces, with the same normalization as B1 | `2e8bef5c6ac1b152f3fa4682b21c36ef4cf912ca` | `96acce118c01b6c270eb6acd36cb8f60e35ba57d` | carry/l1 | carried |
-| L2 | [#91](https://github.com/icl-utk-edu/lapackpp/pull/91) (Riley Murray): `lapack_symbol_suffix` for symbol-suffixed ILP64 OpenBLAS | `1f85c68ec3bdfc7be4d6f72daa4443c764f1da5a` | `239f3e7189e366fbc1cc65416fb30eb74478bacf` | - | pending |
+| L2 | [#91](https://github.com/icl-utk-edu/lapackpp/pull/91) (Riley Murray): `lapack_symbol_suffix` for symbol-suffixed ILP64 OpenBLAS | `1f85c68ec3bdfc7be4d6f72daa4443c764f1da5a` | `239f3e7189e366fbc1cc65416fb30eb74478bacf` | carry/l2 | carried |
 | L3 | PR to be opened (fork branch `fix-gemqrt-empty-workspace`): `gemqrt` allocates at least one workspace entry (empty-vector UB at n = 0 / m = 0; root cause of BallisticLA/RandLAPACK#91, see BallisticLA/RandLAPACK#202); tester sizes V by side and allows zero dims | `9fd0e5e0cd72644c2ee04ba2d8acf7de0d8a29f2` | `a47ade3fa1af372f9d7d763822144e8b45e96d00` | carry/l3 | carried |
 | L4 | PR to be opened (fork branch `fix-reconfigure-module-caches`): re-configure keeps `LAPACK_VERSION`, `LAPACK_HAVE_XBLAS`, `LAPACK_HAVE_LAPACKE`; module caches keyed on `blaspp_libraries`/`blaspp_defines`; no cached failures | `e6fb7f2f1379a9252aa622f478ce64c35fdca87f` | `0c70008f9f8a7db121497cee520caacb75763865` | carry/l4 | carried |
 | L2F1 | none (fork-only `fixup(lapackpp#91)`): with a LAPACK suffix different from BLAS++'s, LAPACK++'s version and other probes must use the LAPACK suffix | - | - | - | pending |
@@ -43,13 +43,33 @@ fork PR), `upstream` (merged upstream; still carried until a release has it),
 `fixup(<id>)` commits fix a defect found in a carried patch. Each enters `main`
 through its own fork PR and is never sent upstream as such.
 
-None so far. Expected: `integration(L4, L2)`, because L4's re-configure cache
-key borders L2's lines and must include L2's `lapack_symbol_suffix`.
+- `integration(lapackpp#91)` `7755649`: adds `lapack_symbol_suffix` to the
+  LAPACKFinder search-cache key that L4 introduces (L2-2). It sits on branch
+  `integration-l4-pr91` (`b53405a`), which merges L4's branch twice
+  (`2e9036e` at `5feda2a`, `b53405a` at `e6fb7f2`); `main` takes it with L2
+  through `carry/l2`.
 
 ## Known issues in carried patches
 
-None recorded. Defects found in L2 are recorded here and in its fork PR, not
-upstream.
+Found while reviewing L2 (#91 at `1f85c68`) for this fork. They are recorded
+here and in L2's fork PR, not upstream. Each was reproduced or read in the code
+at that head. The registry and the fork-only commits above show whether a fix is in `main`.
+
+| # | Issue | Fix |
+|---|---|---|
+| L2-1 | With `lapack_symbol_suffix` set and different from BLAS++'s suffix, LAPACKConfig's version, XBLAS and LAPACKE probes get only `blaspp_defines`, not the LAPACK suffix. Version detection fails, and `defines.h` lacks `LAPACK_VERSION`, `LAPACK_HAVE_XBLAS` and `LAPACK_HAVE_LAPACKE`; 81 of the 385 `.cc` files directly in `src/` are version-gated, `gemqrt` among them. Not affected: a suffix equal to BLAS++'s, or MKL, which exports both unsuffixed and `_64_` names (`dpstrf_` and `dpstrf_64_`). | L2F1; fork CI sub-check `10.lapackpp.defines` |
+| L2-2 | `lapack_symbol_suffix` is not in LAPACKFinder's search cache key, so changing it on a re-configure reuses the previous search. | `integration(lapackpp#91)` |
+| L2-3 | On the FindLAPACK path (`BLA_VENDOR` or `use_cmake_find_lapack`), `LAPACK_FORTRAN_SUFFIX` never reaches `lapackpp_defs_`, so the option has no effect there. | L2F1 |
+| L2-4 | The Make build (`configure.py`) applies the suffix only in its OpenBLAS search and does not read BLAS++'s `blas_symbol_suffix`; the CHANGELOG's "honored automatically" holds for the CMake build only. | none; RandBLAS and RandLAPACK build with CMake |
+| L2-5 | The tester's CBLAS names (`test/cblas_wrappers.hh`) take `LAPACK_FORTRAN_SUFFIX` before `BLAS_FORTRAN_SUFFIX`, although CBLAS comes from the BLAS library. | none; tester only, and no CI lane builds the tester with two different suffixes |
+| L2-6 | In `include/lapack/mangling.h`, a suffix with no mangling define falls back to `ADD_`, while without a suffix the same case is an `#error`. | none; every configure sets a mangling define |
+| L2-7 | `config/lapacke_potrf.cc` is edited, but no probe uses it (LAPACKConfig and `config/lapack.py` use `lapacke_pstrf.cc`). | none; harmless |
+| L2-8 | No check that the generated tester headers (`test/lapack_suffix.hh`, `test/lapacke_suffix.hh`) match `tools/lapacke_suffix_gen.py`. They regenerate byte-identically at `1f85c68`. | none |
+| L2-9 | Including `lapacke.h` before `lapack/fortran.h` (or `lapack/mangling.h`) defines an unsuffixed `LAPACK_GLOBAL` first, and `mangling.h` keeps it. | none; RandLAPACK does not include `lapacke.h` |
+| L2-10 | With `lapack_symbol_suffix` empty, LAPACK++ inherits BLAS++'s `blas_symbol_suffix` (`config/config.h`, `include/lapack/mangling.h`), and no setting asks for unsuffixed LAPACK names. So a BLAS++ built on a suffixed library (e.g. `libopenblas64_` with `64_`), paired through `LAPACK_LIBRARIES` with a separate, unsuffixed ILP64 LAPACK, binds `dpstrf_64_` where master bound `dpstrf_`. The given LAPACK is then bypassed if BLAS++'s library carries LAPACK, and the search fails otherwise. This is the documented inheritance ("honored automatically") seen from the other side. | none; RandBLAS and RandLAPACK use one library for BLAS and LAPACK |
+
+Limitations of the fork CI are listed under "Known limitations" in
+[Fork CI](#fork-ci).
 
 ## Exit criteria
 
@@ -269,5 +289,7 @@ merged F0.
   `actions/download-artifact` v4 target Node.js 20; GitHub runs them on
   Node.js 24 with a deprecation warning.
 - Not covered: the CUDA re-configure case (no GPU runners), and a
-  `lapack_symbol_suffix` re-configure scenario, which arrives with the L4/L2
-  integration PR.
+  re-configure that changes `lapack_symbol_suffix` (L2-2's fix). That case
+  was checked locally only, before L2 was carried: every re-configure step
+  gave the same `defines.h` and `lapackppConfig.cmake` as a fresh configure,
+  or failed the same way.

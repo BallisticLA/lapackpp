@@ -33,10 +33,10 @@
 
 # L2, icl-utk-edu/lapackpp#91: symbol-suffixed ILP64 OpenBLAS, and
 # -llapacke64 for unsuffixed ILP64 OpenBLAS (lane 2).
-2.lapackpp: xfail:L2
-3-cmake.lapackpp: xfail:L2
-3-make.lapackpp: xfail:L2
-10.lapackpp.configure: xfail:L2
+2.lapackpp: pass
+3-cmake.lapackpp: pass
+3-make.lapackpp: pass
+10.lapackpp.configure: pass
 
 # L3 (upstream PR to be opened): gemqrt with m = 0 or n = 0.
 6b.lapackpp.zero-dims: pass
