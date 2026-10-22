@@ -3,14 +3,26 @@
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the BSD 3-Clause license. See the accompanying LICENSE file.
 
-# LAPACK_LIBRARIES is a standard CMake list and passes through unaltered.
-# It is never split on spaces: a space may be part of an entry itself, either
-# inside an absolute path (e.g. the default oneMKL location on Windows,
-# "C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_core_dll.lib")
-# or inside a single linker argument ("-framework Accelerate"). Splitting on
-# spaces (as this once did) tore such entries apart and produced a link
-# failure reported only as "LAPACK library not found". Same convention as
-# BLASFinder.cmake in blaspp.
+# LAPACK_LIBRARIES is a CMake list. Each entry that isn't an existing file
+# is split on spaces, e.g., "-llapack -lblas"; an existing file is kept whole,
+# e.g., "C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_rt.lib".
+# "-framework Accelerate" stays one entry.
+# Save the normalized list in the cache, so re-passing the same value
+# doesn't redo the search, and unset any normal variable that shadows it.
+set( lapack_libraries_in_ ${LAPACK_LIBRARIES} )  # Not "quoted"; also splits on \;
+set( lapack_libraries_ "" )
+foreach (entry_ IN LISTS lapack_libraries_in_)
+    string( STRIP "${entry_}" entry_ )
+    if (NOT EXISTS "${entry_}")
+        string( REGEX REPLACE " +" ";" entry_ "${entry_}" )
+    endif()
+    list( APPEND lapack_libraries_ ${entry_} )  # Not "quoted"; drops empty entries.
+endforeach()
+string( REGEX REPLACE "-framework;" "-framework " lapack_libraries_ "${lapack_libraries_}" )
+if (NOT "${lapack_libraries_}" STREQUAL "$CACHE{LAPACK_LIBRARIES}")
+    set( LAPACK_LIBRARIES "${lapack_libraries_}" CACHE STRING "" FORCE )
+endif()
+unset( LAPACK_LIBRARIES )
 
 message( DEBUG "LAPACK_LIBRARIES '${LAPACK_LIBRARIES}'"        )
 message( DEBUG "  cached         '${lapack_libraries_cached}'" )
