@@ -27,10 +27,10 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 
 | ID | Upstream | Head | Tree | Fork PR | State |
 |---|---|---|---|---|---|
-| L1 | [#92](https://github.com/icl-utk-edu/lapackpp/pull/92): `LAPACK_LIBRARIES` paths with spaces, with the same normalization as B1 | `2e8bef5c6ac1b152f3fa4682b21c36ef4cf912ca` | `96acce118c01b6c270eb6acd36cb8f60e35ba57d` | carry/l1 | carried |
+| L1 | [#92](https://github.com/icl-utk-edu/lapackpp/pull/92): `LAPACK_LIBRARIES` paths with spaces, with the same normalization as B1 | `3b69b6826676dc04767a374db269a47ea8fe498d` | `c6ac3db90730ebbcfeb89732aff2f02cf33ffc70` | carry/l1, carry/l1-update | carried |
 | L2 | [#91](https://github.com/icl-utk-edu/lapackpp/pull/91) (Riley Murray): `lapack_symbol_suffix` for symbol-suffixed ILP64 OpenBLAS | `1f85c68ec3bdfc7be4d6f72daa4443c764f1da5a` | `239f3e7189e366fbc1cc65416fb30eb74478bacf` | carry/l2 | carried |
-| L3 | PR to be opened (fork branch `fix-gemqrt-empty-workspace`): `gemqrt` allocates at least one workspace entry (empty-vector UB at n = 0 / m = 0; root cause of BallisticLA/RandLAPACK#91, see BallisticLA/RandLAPACK#202); tester sizes V by side and allows zero dims | `9fd0e5e0cd72644c2ee04ba2d8acf7de0d8a29f2` | `a47ade3fa1af372f9d7d763822144e8b45e96d00` | carry/l3 | carried |
-| L4 | PR to be opened (fork branch `fix-reconfigure-module-caches`): re-configure keeps `LAPACK_VERSION`, `LAPACK_HAVE_XBLAS`, `LAPACK_HAVE_LAPACKE`; module caches keyed on `blaspp_libraries`/`blaspp_defines`; no cached failures | `e6fb7f2f1379a9252aa622f478ce64c35fdca87f` | `0c70008f9f8a7db121497cee520caacb75763865` | carry/l4 | carried |
+| L3 | [#93](https://github.com/icl-utk-edu/lapackpp/pull/93): `gemqrt` allocates at least one workspace entry (empty-vector UB at n = 0 / m = 0; root cause of BallisticLA/RandLAPACK#91, see BallisticLA/RandLAPACK#202); tester sizes V by side and allows zero dims | `72f94626dc799a8f64610727e462dbac2ed88133` | `a47ade3fa1af372f9d7d763822144e8b45e96d00` | carry/l3 | carried |
+| L4 | [#94](https://github.com/icl-utk-edu/lapackpp/pull/94), the LAPACK++ counterpart of icl-utk-edu/blaspp#133: re-configure keeps `LAPACK_VERSION`, `LAPACK_HAVE_XBLAS`, `LAPACK_HAVE_LAPACKE`; module caches keyed on `blaspp_libraries`/`blaspp_defines`; no cached failures | `e6fb7f2f1379a9252aa622f478ce64c35fdca87f` | `0c70008f9f8a7db121497cee520caacb75763865` | carry/l4 | carried |
 | L2F1 | none (fork-only `fixup(lapackpp#91)`): with a LAPACK suffix different from BLAS++'s, LAPACK++'s version and other probes must use the LAPACK suffix | `ac13027ab21f02b3a3e865f5d810ec7dea7fbbc0` | `5de1a87aa0e297e0de2f2bba383d893f3ca1eed5` | carry/l2f1 | carried |
 
 States: `pending` (not in `main`), `carried` (merged into `main` through its
@@ -71,6 +71,21 @@ at that head. The registry and the fork-only commits above show whether a fix is
 | L2-8 | No check that the generated tester headers (`test/lapack_suffix.hh`, `test/lapacke_suffix.hh`) match `tools/lapacke_suffix_gen.py`. They regenerate byte-identically at `1f85c68`. | none |
 | L2-9 | Including `lapacke.h` before `lapack/fortran.h` (or `lapack/mangling.h`) defines an unsuffixed `LAPACK_GLOBAL` first, and `mangling.h` keeps it. | none; RandLAPACK does not include `lapacke.h` |
 | L2-10 | With `lapack_symbol_suffix` empty, LAPACK++ inherits BLAS++'s `blas_symbol_suffix` (`config/config.h`, `include/lapack/mangling.h`), and no setting asks for unsuffixed LAPACK names. So a BLAS++ built on a suffixed library (e.g. `libopenblas64_` with `64_`), paired through `LAPACK_LIBRARIES` with a separate, unsuffixed ILP64 LAPACK, binds `dpstrf_64_` where master bound `dpstrf_`. The given LAPACK is then bypassed if BLAS++'s library carries LAPACK, and the search fails otherwise. This is the documented inheritance ("honored automatically") seen from the other side. | none; RandBLAS and RandLAPACK use one library for BLAS and LAPACK |
+
+Corners of L1 and L4, left as they are. None breaks an input that works on
+upstream `master`, and none affects RandBLAS or RandLAPACK:
+- **L1:** the same normalization as B1, with the same corners.
+  - An entry of `LAPACK_LIBRARIES` is kept whole only if it names a file that
+    exists when CMake runs; any other entry is split on spaces, as on
+    `master`.
+  - Empty list elements are dropped, so the cached value and the exported
+    `lapackpp_libraries` can differ in text from `master`'s, with the same
+    link items.
+  - Passing the same value again can change the cache entry's type or
+    docstring.
+- **L4:** clearing `LAPACK_LIBRARIES` after it was given reuses the previous
+  search, and a re-search tries the previously found `LAPACK_LIBRARIES`
+  first.
 
 Limitations of the fork CI are listed under "Known limitations" in
 [Fork CI](#fork-ci).
