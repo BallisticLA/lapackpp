@@ -31,7 +31,7 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 | L2 | [#91](https://github.com/icl-utk-edu/lapackpp/pull/91) (Riley Murray): `lapack_symbol_suffix` for symbol-suffixed ILP64 OpenBLAS | `1f85c68ec3bdfc7be4d6f72daa4443c764f1da5a` | `239f3e7189e366fbc1cc65416fb30eb74478bacf` | carry/l2 | carried |
 | L3 | PR to be opened (fork branch `fix-gemqrt-empty-workspace`): `gemqrt` allocates at least one workspace entry (empty-vector UB at n = 0 / m = 0; root cause of BallisticLA/RandLAPACK#91, see BallisticLA/RandLAPACK#202); tester sizes V by side and allows zero dims | `9fd0e5e0cd72644c2ee04ba2d8acf7de0d8a29f2` | `a47ade3fa1af372f9d7d763822144e8b45e96d00` | carry/l3 | carried |
 | L4 | PR to be opened (fork branch `fix-reconfigure-module-caches`): re-configure keeps `LAPACK_VERSION`, `LAPACK_HAVE_XBLAS`, `LAPACK_HAVE_LAPACKE`; module caches keyed on `blaspp_libraries`/`blaspp_defines`; no cached failures | `e6fb7f2f1379a9252aa622f478ce64c35fdca87f` | `0c70008f9f8a7db121497cee520caacb75763865` | carry/l4 | carried |
-| L2F1 | none (fork-only `fixup(lapackpp#91)`): with a LAPACK suffix different from BLAS++'s, LAPACK++'s version and other probes must use the LAPACK suffix | - | - | - | pending |
+| L2F1 | none (fork-only `fixup(lapackpp#91)`): with a LAPACK suffix different from BLAS++'s, LAPACK++'s version and other probes must use the LAPACK suffix | `ac13027ab21f02b3a3e865f5d810ec7dea7fbbc0` | `5de1a87aa0e297e0de2f2bba383d893f3ca1eed5` | carry/l2f1 | carried |
 
 States: `pending` (not in `main`), `carried` (merged into `main` through its
 fork PR), `upstream` (merged upstream; still carried until a release has it),
@@ -48,6 +48,10 @@ through its own fork PR and is never sent upstream as such.
   `integration-l4-pr91` (`b53405a`), which merges L4's branch twice
   (`2e9036e` at `5feda2a`, `b53405a` at `e6fb7f2`); `main` takes it with L2
   through `carry/l2`.
+- `fixup(lapackpp#91)`, L2F1 (branch `fixup-pr91-lapackconfig-suffix`):
+  `8fae8aa` passes `LAPACK_FORTRAN_SUFFIX` to LAPACKConfig's three probes and
+  keys its cache on `lapack_symbol_suffix` (L2-1); `ac13027` defines it on the
+  FindLAPACK path (L2-3). `fba5c0f` merges the integration branch between them.
 
 ## Known issues in carried patches
 
