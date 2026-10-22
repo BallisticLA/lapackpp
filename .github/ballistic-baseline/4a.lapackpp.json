@@ -1,0 +1,718 @@
+{
+ "subcheck": "4a.lapackpp",
+ "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39728446200",
+ "blaspp": "f84bc922c837bd9728649befaf610799322a1e72",
+ "lapackpp": "66e31808a1f0438758a35c6870f662ce8c30cd9e",
+ "args": [
+  "--quick",
+  "--host"
+ ],
+ "routines": {
+  "gesv [s,d,c,z]": "pass",
+  "gesvx [s,d,c,z]": "pass",
+  "getrf [s,d,c,z]": "pass",
+  "getrs [s,d,c,z]": "pass",
+  "getri [s,d,c,z]": "pass",
+  "gecon [s,d,c,z]": "pass",
+  "gerfs [s,d,c,z]": "pass",
+  "geequ [s,d,c,z]": "pass",
+  "gbsv [s,d,c,z]": "pass",
+  "gbtrf [s,d,c,z]": "pass",
+  "gbtrs [s,d,c,z]": "pass",
+  "gbcon [s,d,c,z]": "pass",
+  "gbrfs [s,d,c,z]": "pass",
+  "gbequ [s,d,c,z]": "pass",
+  "gtsv [s,d,c,z]": "pass",
+  "gttrf [s,d,c,z]": "pass",
+  "gttrs [s,d,c,z]": "pass",
+  "gtcon [s,d,c,z]": "pass",
+  "gtrfs [s,d,c,z]": "pass",
+  "posv [s,d,c,z]": "pass",
+  "potrf [s,d,c,z]": "pass",
+  "potrs [s,d,c,z]": "pass",
+  "potri [s,d,c,z]": "pass",
+  "pocon [s,d,c,z]": "pass",
+  "porfs [s,d,c,z]": "pass",
+  "poequ [s,d,c,z]": "pass",
+  "ppsv [s,d,c,z]": "pass",
+  "pptrf [s,d,c,z]": "pass",
+  "pptrs [s,d,c,z]": "pass",
+  "pptri [s,d,c,z]": "pass",
+  "ppcon [s,d,c,z]": "pass",
+  "pprfs [s,d,c,z]": "pass",
+  "ppequ [s,d,c,z]": "pass",
+  "pbsv [s,d,c,z]": "pass",
+  "pbtrf [s,d,c,z]": "pass",
+  "pbtrs [s,d,c,z]": "pass",
+  "pbcon [s,d,c,z]": "pass",
+  "pbrfs [s,d,c,z]": "pass",
+  "pbequ [s,d,c,z]": "pass",
+  "ptsv [s,d,c,z]": "pass",
+  "pttrf [s,d,c,z]": "pass",
+  "pttrs [s,d,c,z]": "pass",
+  "ptcon [s,d,c,z]": "pass",
+  "ptrfs [s,d,c,z]": "pass",
+  "sysv [s,d,c,z]": "pass",
+  "sytrf [s,d,c,z]": "pass",
+  "sytrs [s,d,c,z]": "pass",
+  "sytri [s,d,c,z]": "pass",
+  "sycon [s,d,c,z]": "pass",
+  "syrfs [s,d,c,z]": "pass",
+  "spsv [s,d,c,z]": "pass",
+  "sptrf [s,d,c,z]": "pass",
+  "sptrs [s,d,c,z]": "pass",
+  "sptri [s,d,c,z]": "pass",
+  "spcon [s,d,c,z]": "pass",
+  "sprfs [s,d,c,z]": "pass",
+  "sysv_rook [s,d,c,z]": "pass",
+  "sytrf_rook [s,d,c,z]": "pass",
+  "sytrs_rook [s,d,c,z]": "pass",
+  "sysv_rk [s,d,c,z]": "pass",
+  "sytrf_rk [s,d,c,z]": "pass",
+  "sysv_aa [s,d,c,z]": "pass",
+  "sytrf_aa [s,d,c,z]": "pass",
+  "sytrs_aa [s,d,c,z]": "pass",
+  "hesv [s,d,c,z]": "pass",
+  "hetrf [s,d,c,z]": "pass",
+  "hetrs [s,d,c,z]": "pass",
+  "hetri [s,d,c,z]": "pass",
+  "hecon [s,d,c,z]": "pass",
+  "herfs [s,d,c,z]": "pass",
+  "hpsv [s,d,c,z]": "pass",
+  "hptrf [s,d,c,z]": "pass",
+  "hptrs [s,d,c,z]": "pass",
+  "hptri [s,d,c,z]": "pass",
+  "hpcon [s,d,c,z]": "pass",
+  "hprfs [s,d,c,z]": "pass",
+  "gels [s,d,c,z]": "pass",
+  "gelsy [s,d,c,z]": "pass",
+  "gelss [s,d,c,z]": "pass",
+  "getsls [s,d,c,z]": "pass",
+  "gglse [s,d,c,z]": "pass",
+  "geqr [s,d,c,z]": "pass",
+  "geqrf [s,d,c,z]": "pass",
+  "ungqr [s,d,c,z]": "pass",
+  "orhr_col [s,d]": "pass",
+  "unhr_col [s,d,c,z]": "pass",
+  "gemqrt [s,d]": "pass",
+  "gemqrt [c,z]": "pass",
+  "tpqrt [s,d,c,z]": "pass",
+  "tpqrt2 [s,d,c,z]": "pass",
+  "tpmqrt [s,d]": "pass",
+  "tpmqrt [c,z]": "pass",
+  "gelqf [s,d,c,z]": "pass",
+  "unglq [s,d,c,z]": "pass",
+  "tplqt [s,d,c,z]": "pass",
+  "tplqt2 [s,d,c,z]": "pass",
+  "tpmlqt [s,d]": "pass",
+  "tpmlqt [c,z]": "pass",
+  "geqlf [s,d,c,z]": "pass",
+  "ungql [s,d,c,z]": "pass",
+  "gerqf [s,d,c,z]": "pass",
+  "ungrq [s,d,c,z]": "pass",
+  "heev [s,d,c,z]": "pass",
+  "heevx [s,d,c,z]": "pass",
+  "heevx [s,d,c,z] #2": "pass",
+  "heevd [s,d,c,z]": "pass",
+  "heevr [s,d,c,z]": "pass",
+  "heevr [s,d,c,z] #2": "pass",
+  "hetrd [s,d,c,z]": "pass",
+  "lae2 [s,d]": "pass",
+  "laev2 [s,d,c,z]": "pass",
+  "ungtr [s,d,c,z]": "pass",
+  "unmtr [s,d]": "pass",
+  "unmtr [c,z]": "pass",
+  "hpev [s,d,c,z]": "pass",
+  "hpevx [s,d,c,z]": "pass",
+  "hpevx [s,d,c,z] #2": "pass",
+  "hpevd [s,d,c,z]": "pass",
+  "hptrd [s,d,c,z]": "pass",
+  "upgtr [s,d,c,z]": "pass",
+  "upmtr [s,d,c,z]": "pass",
+  "hbev [s,d,c,z]": "pass",
+  "hbevx [s,d,c,z]": "pass",
+  "hbevx [s,d,c,z] #2": "pass",
+  "hbevd [s,d,c,z]": "pass",
+  "hegv [s,d,c,z]": "pass",
+  "hegvx [s,d,c,z]": "pass",
+  "hegvx [s,d,c,z] #2": "pass",
+  "hegvd [s,d,c,z]": "pass",
+  "hegst [s,d,c,z]": "pass",
+  "hpgv [s,d,c,z]": "pass",
+  "hpgvx [s,d,c,z]": "pass",
+  "hpgvx [s,d,c,z] #2": "pass",
+  "hpgvd [s,d,c,z]": "pass",
+  "hpgst [s,d,c,z]": "pass",
+  "hbgv [s,d,c,z]": "pass",
+  "hbgvx [s,d,c,z]": "pass",
+  "hbgvx [s,d,c,z] #2": "pass",
+  "hbgvd [s,d,c,z]": "pass",
+  "geev [s,d,c,z]": "pass",
+  "gehrd [s,d,c,z]": "pass",
+  "unghr [s,d,c,z]": "pass",
+  "unmhr [s,d]": "pass",
+  "unmhr [c,z]": "pass",
+  "tgexc [s,d,c,z]": "pass",
+  "tgsen [s,d,c,z]": "pass",
+  "gesvd [s,d,c,z]": "pass",
+  "gesvd [s,d,c,z] #2": "pass",
+  "gesdd [s,d,c,z]": "pass",
+  "lacpy [s,d,c,z]": "pass",
+  "laed4 [s,d]": "pass",
+  "laset [s,d,c,z]": "pass",
+  "laswp [s,d,c,z]": "pass",
+  "larfg [s,d,c,z]": "pass",
+  "larfgp [s,d,c,z]": "pass",
+  "larf [s,d,c,z]": "pass",
+  "larfx [s,d,c,z]": "pass",
+  "larfy [s,d,c,z]": "pass",
+  "larfb [s,d,c,z]": "pass",
+  "larft [s,d,c,z]": "pass",
+  "lasr [s,d,c,z]": "pass",
+  "lange [s,d,c,z]": "pass",
+  "lansy [s,d,c,z]": "pass",
+  "lantr [s,d,c,z]": "pass",
+  "lanhs [s,d,c,z]": "pass",
+  "lanhp [s,d,c,z]": "pass",
+  "lansp [s,d,c,z]": "pass",
+  "lantp [s,d,c,z]": "pass",
+  "langb [s,d,c,z]": "pass",
+  "lanhb [s,d,c,z]": "pass",
+  "lansb [s,d,c,z]": "pass",
+  "lantb [s,d,c,z]": "pass",
+  "langt [s,d,c,z]": "pass",
+  "lanht [s,d,c,z]": "pass",
+  "lanst [s,d,c,z]": "pass"
+ },
+ "details": {
+  "gesv [s,d,c,z]": {
+   "n": 4
+  },
+  "gesvx [s,d,c,z]": {
+   "n": 36
+  },
+  "getrf [s,d,c,z]": {
+   "n": 4
+  },
+  "getrs [s,d,c,z]": {
+   "n": 12
+  },
+  "getri [s,d,c,z]": {
+   "n": 4
+  },
+  "gecon [s,d,c,z]": {
+   "n": 4
+  },
+  "gerfs [s,d,c,z]": {
+   "n": 12
+  },
+  "geequ [s,d,c,z]": {
+   "n": 4
+  },
+  "gbsv [s,d,c,z]": {
+   "n": 16
+  },
+  "gbtrf [s,d,c,z]": {
+   "n": 48
+  },
+  "gbtrs [s,d,c,z]": {
+   "n": 48
+  },
+  "gbcon [s,d,c,z]": {
+   "n": 16
+  },
+  "gbrfs [s,d,c,z]": {
+   "n": 48
+  },
+  "gbequ [s,d,c,z]": {
+   "n": 16
+  },
+  "gtsv [s,d,c,z]": {
+   "n": 4
+  },
+  "gttrf [s,d,c,z]": {
+   "n": 4
+  },
+  "gttrs [s,d,c,z]": {
+   "n": 12
+  },
+  "gtcon [s,d,c,z]": {
+   "n": 4
+  },
+  "gtrfs [s,d,c,z]": {
+   "n": 12
+  },
+  "posv [s,d,c,z]": {
+   "n": 8
+  },
+  "potrf [s,d,c,z]": {
+   "n": 8
+  },
+  "potrs [s,d,c,z]": {
+   "n": 8
+  },
+  "potri [s,d,c,z]": {
+   "n": 8
+  },
+  "pocon [s,d,c,z]": {
+   "n": 8
+  },
+  "porfs [s,d,c,z]": {
+   "n": 8
+  },
+  "poequ [s,d,c,z]": {
+   "n": 4
+  },
+  "ppsv [s,d,c,z]": {
+   "n": 8
+  },
+  "pptrf [s,d,c,z]": {
+   "n": 8
+  },
+  "pptrs [s,d,c,z]": {
+   "n": 8
+  },
+  "pptri [s,d,c,z]": {
+   "n": 8
+  },
+  "ppcon [s,d,c,z]": {
+   "n": 8
+  },
+  "pprfs [s,d,c,z]": {
+   "n": 8
+  },
+  "ppequ [s,d,c,z]": {
+   "n": 8
+  },
+  "pbsv [s,d,c,z]": {
+   "n": 16
+  },
+  "pbtrf [s,d,c,z]": {
+   "n": 16
+  },
+  "pbtrs [s,d,c,z]": {
+   "n": 16
+  },
+  "pbcon [s,d,c,z]": {
+   "n": 16
+  },
+  "pbrfs [s,d,c,z]": {
+   "n": 16
+  },
+  "pbequ [s,d,c,z]": {
+   "n": 16
+  },
+  "ptsv [s,d,c,z]": {
+   "n": 4
+  },
+  "pttrf [s,d,c,z]": {
+   "n": 4
+  },
+  "pttrs [s,d,c,z]": {
+   "n": 8
+  },
+  "ptcon [s,d,c,z]": {
+   "n": 4
+  },
+  "ptrfs [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrf [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrs [s,d,c,z]": {
+   "n": 8
+  },
+  "sytri [s,d,c,z]": {
+   "n": 8
+  },
+  "sycon [s,d,c,z]": {
+   "n": 8
+  },
+  "syrfs [s,d,c,z]": {
+   "n": 8
+  },
+  "spsv [s,d,c,z]": {
+   "n": 8
+  },
+  "sptrf [s,d,c,z]": {
+   "n": 8
+  },
+  "sptrs [s,d,c,z]": {
+   "n": 8
+  },
+  "sptri [s,d,c,z]": {
+   "n": 8
+  },
+  "spcon [s,d,c,z]": {
+   "n": 8
+  },
+  "sprfs [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv_rook [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrf_rook [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrs_rook [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv_rk [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrf_rk [s,d,c,z]": {
+   "n": 8
+  },
+  "sysv_aa [s,d,c,z]": {
+   "n": 0
+  },
+  "sytrf_aa [s,d,c,z]": {
+   "n": 8
+  },
+  "sytrs_aa [s,d,c,z]": {
+   "n": 8
+  },
+  "hesv [s,d,c,z]": {
+   "n": 8
+  },
+  "hetrf [s,d,c,z]": {
+   "n": 8
+  },
+  "hetrs [s,d,c,z]": {
+   "n": 8
+  },
+  "hetri [s,d,c,z]": {
+   "n": 8
+  },
+  "hecon [s,d,c,z]": {
+   "n": 8
+  },
+  "herfs [s,d,c,z]": {
+   "n": 8
+  },
+  "hpsv [s,d,c,z]": {
+   "n": 8
+  },
+  "hptrf [s,d,c,z]": {
+   "n": 8
+  },
+  "hptrs [s,d,c,z]": {
+   "n": 8
+  },
+  "hptri [s,d,c,z]": {
+   "n": 8
+  },
+  "hpcon [s,d,c,z]": {
+   "n": 8
+  },
+  "hprfs [s,d,c,z]": {
+   "n": 8
+  },
+  "gels [s,d,c,z]": {
+   "n": 24
+  },
+  "gelsy [s,d,c,z]": {
+   "n": 12
+  },
+  "gelss [s,d,c,z]": {
+   "n": 12
+  },
+  "getsls [s,d,c,z]": {
+   "n": 24
+  },
+  "gglse [s,d,c,z]": {
+   "n": 12
+  },
+  "geqr [s,d,c,z]": {
+   "n": 12
+  },
+  "geqrf [s,d,c,z]": {
+   "n": 12
+  },
+  "ungqr [s,d,c,z]": {
+   "n": 8
+  },
+  "orhr_col [s,d]": {
+   "n": 0
+  },
+  "unhr_col [s,d,c,z]": {
+   "n": 0
+  },
+  "gemqrt [s,d]": {
+   "n": 12
+  },
+  "gemqrt [c,z]": {
+   "n": 8
+  },
+  "tpqrt [s,d,c,z]": {
+   "n": 36
+  },
+  "tpqrt2 [s,d,c,z]": {
+   "n": 36
+  },
+  "tpmqrt [s,d]": {
+   "n": 108
+  },
+  "tpmqrt [c,z]": {
+   "n": 72
+  },
+  "gelqf [s,d,c,z]": {
+   "n": 12
+  },
+  "unglq [s,d,c,z]": {
+   "n": 4
+  },
+  "tplqt [s,d,c,z]": {
+   "n": 36
+  },
+  "tplqt2 [s,d,c,z]": {
+   "n": 36
+  },
+  "tpmlqt [s,d]": {
+   "n": 108
+  },
+  "tpmlqt [c,z]": {
+   "n": 72
+  },
+  "geqlf [s,d,c,z]": {
+   "n": 12
+  },
+  "ungql [s,d,c,z]": {
+   "n": 8
+  },
+  "gerqf [s,d,c,z]": {
+   "n": 12
+  },
+  "ungrq [s,d,c,z]": {
+   "n": 4
+  },
+  "heev [s,d,c,z]": {
+   "n": 16
+  },
+  "heevx [s,d,c,z]": {
+   "n": 32
+  },
+  "heevx [s,d,c,z] #2": {
+   "n": 32
+  },
+  "heevd [s,d,c,z]": {
+   "n": 16
+  },
+  "heevr [s,d,c,z]": {
+   "n": 32
+  },
+  "heevr [s,d,c,z] #2": {
+   "n": 32
+  },
+  "hetrd [s,d,c,z]": {
+   "n": 8
+  },
+  "lae2 [s,d]": {
+   "n": 10
+  },
+  "laev2 [s,d,c,z]": {
+   "n": 20
+  },
+  "ungtr [s,d,c,z]": {
+   "n": 8
+  },
+  "unmtr [s,d]": {
+   "n": 72
+  },
+  "unmtr [c,z]": {
+   "n": 48
+  },
+  "hpev [s,d,c,z]": {
+   "n": 16
+  },
+  "hpevx [s,d,c,z]": {
+   "n": 32
+  },
+  "hpevx [s,d,c,z] #2": {
+   "n": 32
+  },
+  "hpevd [s,d,c,z]": {
+   "n": 16
+  },
+  "hptrd [s,d,c,z]": {
+   "n": 8
+  },
+  "upgtr [s,d,c,z]": {
+   "n": 8
+  },
+  "upmtr [s,d,c,z]": {
+   "n": 96
+  },
+  "hbev [s,d,c,z]": {
+   "n": 16
+  },
+  "hbevx [s,d,c,z]": {
+   "n": 32
+  },
+  "hbevx [s,d,c,z] #2": {
+   "n": 32
+  },
+  "hbevd [s,d,c,z]": {
+   "n": 16
+  },
+  "hegv [s,d,c,z]": {
+   "n": 48
+  },
+  "hegvx [s,d,c,z]": {
+   "n": 96
+  },
+  "hegvx [s,d,c,z] #2": {
+   "n": 96
+  },
+  "hegvd [s,d,c,z]": {
+   "n": 48
+  },
+  "hegst [s,d,c,z]": {
+   "n": 24
+  },
+  "hpgv [s,d,c,z]": {
+   "n": 48
+  },
+  "hpgvx [s,d,c,z]": {
+   "n": 96
+  },
+  "hpgvx [s,d,c,z] #2": {
+   "n": 96
+  },
+  "hpgvd [s,d,c,z]": {
+   "n": 48
+  },
+  "hpgst [s,d,c,z]": {
+   "n": 24
+  },
+  "hbgv [s,d,c,z]": {
+   "n": 48
+  },
+  "hbgvx [s,d,c,z]": {
+   "n": 96
+  },
+  "hbgvx [s,d,c,z] #2": {
+   "n": 96
+  },
+  "hbgvd [s,d,c,z]": {
+   "n": 48
+  },
+  "geev [s,d,c,z]": {
+   "n": 16
+  },
+  "gehrd [s,d,c,z]": {
+   "n": 4
+  },
+  "unghr [s,d,c,z]": {
+   "n": 4
+  },
+  "unmhr [s,d]": {
+   "n": 36
+  },
+  "unmhr [c,z]": {
+   "n": 24
+  },
+  "tgexc [s,d,c,z]": {
+   "n": 16
+  },
+  "tgsen [s,d,c,z]": {
+   "n": 96
+  },
+  "gesvd [s,d,c,z]": {
+   "n": 96
+  },
+  "gesvd [s,d,c,z] #2": {
+   "n": 24
+  },
+  "gesdd [s,d,c,z]": {
+   "n": 48
+  },
+  "lacpy [s,d,c,z]": {
+   "n": 36
+  },
+  "laed4 [s,d]": {
+   "n": 2
+  },
+  "laset [s,d,c,z]": {
+   "n": 36
+  },
+  "laswp [s,d,c,z]": {
+   "n": 12
+  },
+  "larfg [s,d,c,z]": {
+   "n": 4
+  },
+  "larfgp [s,d,c,z]": {
+   "n": 0
+  },
+  "larf [s,d,c,z]": {
+   "n": 48
+  },
+  "larfx [s,d,c,z]": {
+   "n": 24
+  },
+  "larfy [s,d,c,z]": {
+   "n": 8
+  },
+  "larfb [s,d,c,z]": {
+   "n": 200
+  },
+  "larft [s,d,c,z]": {
+   "n": 32
+  },
+  "lasr [s,d,c,z]": {
+   "n": 144
+  },
+  "lange [s,d,c,z]": {
+   "n": 48
+  },
+  "lansy [s,d,c,z]": {
+   "n": 32
+  },
+  "lantr [s,d,c,z]": {
+   "n": 192
+  },
+  "lanhs [s,d,c,z]": {
+   "n": 16
+  },
+  "lanhp [s,d,c,z]": {
+   "n": 32
+  },
+  "lansp [s,d,c,z]": {
+   "n": 32
+  },
+  "lantp [s,d,c,z]": {
+   "n": 64
+  },
+  "langb [s,d,c,z]": {
+   "n": 192
+  },
+  "lanhb [s,d,c,z]": {
+   "n": 64
+  },
+  "lansb [s,d,c,z]": {
+   "n": 64
+  },
+  "lantb [s,d,c,z]": {
+   "n": 128
+  },
+  "langt [s,d,c,z]": {
+   "n": 16
+  },
+  "lanht [s,d,c,z]": {
+   "n": 16
+  },
+  "lanst [s,d,c,z]": {
+   "n": 8
+  }
+ },
+ "exports": {
+  "lapackpp_libraries": "-lmkl_gf_ilp64;-lmkl_gnu_thread;-lmkl_core;-lgomp;-lpthread;-lm;-ldl;blaspp",
+  "lapackpp_defines": "-DLAPACK_HAVE_LAPACK;-DLAPACK_VERSION=30800;-DLAPACK_HAVE_XBLAS;-DLAPACK_HAVE_LAPACKE"
+ }
+}

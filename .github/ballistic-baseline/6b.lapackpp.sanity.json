@@ -1,0 +1,22 @@
+{
+ "subcheck": "6b.lapackpp.sanity",
+ "run": "https://github.com/BallisticLA/lapackpp/actions/runs/39728446200",
+ "blaspp": "f84bc922c837bd9728649befaf610799322a1e72",
+ "lapackpp": "66e31808a1f0438758a35c6870f662ce8c30cd9e",
+ "args": [
+  "--quick",
+  "gemqrt"
+ ],
+ "routines": {
+  "gemqrt [s,d]": "pass",
+  "gemqrt [c,z]": "pass"
+ },
+ "details": {
+  "gemqrt [s,d]": {
+   "n": 12
+  },
+  "gemqrt [c,z]": {
+   "n": 8
+  }
+ }
+}

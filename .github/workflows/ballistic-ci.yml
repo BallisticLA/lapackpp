@@ -1,0 +1,372 @@
+# BallisticLA fork CI on GitHub-hosted runners. Fork-only infrastructure:
+# never sent upstream (upstream CI needs ICL's self-hosted runners). This file
+# and .github/ballistic/ci.py are identical in BallisticLA/blaspp and
+# BallisticLA/lapackpp; BALLISTIC.md describes the lanes, the expectations
+# file and the merge rule.
+#
+# Each run builds one BLAS++ commit and one LAPACK++ commit, fetched by SHA:
+# the commit under test from this repository, and the other fork's current
+# main (or both from workflow_dispatch inputs). Every lane records its
+# sub-checks; the `check` job compares them with the expectations files and
+# the per-routine baselines, and is the merge gate.
+name: ballistic-ci
+
+on:
+  pull_request:
+    branches: [main]
+    # labeled/unlabeled: the ci-rules-change label changes the verdict.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      blaspp_ref:
+        description: BLAS++ commit, full SHA (empty = the dispatched commit in the blaspp fork, BallisticLA/blaspp main in the lapackpp fork)
+        required: false
+        default: ''
+      lapackpp_ref:
+        description: LAPACK++ commit, full SHA (empty = the dispatched commit in the lapackpp fork, BallisticLA/lapackpp main in the blaspp fork)
+        required: false
+        default: ''
+      expect:
+        description: file = the expectations files; candidate = every sub-check passes; baseline = every patch-owned sub-check fails
+        type: choice
+        options: [file, candidate, baseline]
+        default: file
+
+permissions:
+  contents: read
+
+# A new push to a pull request supersedes its running check; runs on main and
+# dispatched runs never cancel each other.
+concurrency:
+  group: ballistic-ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  resolve:
+    name: resolve commits
+    runs-on: ubuntu-24.04
+    outputs:
+      blaspp_url: ${{ steps.r.outputs.blaspp_url }}
+      blaspp_sha: ${{ steps.r.outputs.blaspp_sha }}
+      lapackpp_url: ${{ steps.r.outputs.lapackpp_url }}
+      lapackpp_sha: ${{ steps.r.outputs.lapackpp_sha }}
+      expect: ${{ steps.r.outputs.expect }}
+      base_sha: ${{ steps.r.outputs.base_sha }}
+      rules_label: ${{ steps.r.outputs.rules_label }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: checker self-test
+        run: python3 -I .github/ballistic/ci.py selftest
+      - id: r
+        name: resolve
+        env:
+          INPUT_BLASPP_REF: ${{ inputs.blaspp_ref }}
+          INPUT_LAPACKPP_REF: ${{ inputs.lapackpp_ref }}
+          INPUT_EXPECT: ${{ inputs.expect }}
+        run: python3 -I .github/ballistic/ci.py resolve
+
+  linux:
+    name: lane ${{ matrix.lane }}
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { lane: 1-cmake, apt: libopenblas-dev liblapacke-dev }
+          - { lane: 1-make, apt: libopenblas-dev liblapacke-dev }
+          - { lane: '2', apt: libopenblas64-dev liblapacke64-dev liblapacke-dev, cpath: openblas64 }
+          - { lane: 3-cmake, conda: global }
+          - { lane: 3-make, conda: global }
+          - { lane: 4a, apt: libmkl-dev, cpath: mkl }
+          - { lane: 4b, apt: libmkl-dev, cpath: mkl }
+          - { lane: 5a, apt: libopenblas-dev liblapacke-dev }
+          - { lane: 5b, apt: libopenblas-dev liblapacke-dev }
+          - { lane: '6', apt: libopenblas-dev libopenblas64-dev liblapacke-dev, conda: local }
+          - { lane: 6b, apt: libopenblas-dev liblapacke-dev }
+          - { lane: '9', apt: libopenblas-dev liblapacke-dev }
+          - { lane: '10', apt: libblas-dev liblapack-dev gfortran }
+    env:
+      BCI_BLASPP_URL: ${{ needs.resolve.outputs.blaspp_url }}
+      BCI_BLASPP_SHA: ${{ needs.resolve.outputs.blaspp_sha }}
+      BCI_LAPACKPP_URL: ${{ needs.resolve.outputs.lapackpp_url }}
+      BCI_LAPACKPP_SHA: ${{ needs.resolve.outputs.lapackpp_sha }}
+      BCI_EXPECT: ${{ needs.resolve.outputs.expect }}
+    defaults:
+      run:
+        # Login shell, so the micromamba environment is active.
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: apt packages
+        if: matrix.apt
+        run: |
+          set -x
+          if [[ "${{ matrix.apt }}" == *libmkl* ]]; then
+            sudo add-apt-repository -y multiverse
+            echo "libmkl-rt libmkl-rt/use-as-default-blas-lapack boolean false" | sudo debconf-set-selections
+          fi
+          for attempt in 1 2 3; do
+            sudo apt-get -o Acquire::Retries=5 update -q \
+              && sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y -q ${{ matrix.apt }} \
+              && break
+            [ $attempt = 3 ] && exit 1
+            sleep 20
+          done
+
+      - name: cblas.h for the ILP64 OpenBLAS
+        if: matrix.cpath == 'openblas64'
+        run: |
+          # libopenblas64-dev's cblas.h is not on the default include path.
+          inc=$(dirname "$(ls /usr/include/*/openblas64*/cblas.h | head -1)")
+          echo "CPATH=$inc" >> "$GITHUB_ENV"
+
+      - name: oneMKL headers
+        if: matrix.cpath == 'mkl'
+        run: echo "CPATH=/usr/include/mkl" >> "$GITHUB_ENV"
+
+      - name: conda-forge OpenBLAS (ILP64, symbol suffix 64_)
+        if: matrix.conda
+        uses: mamba-org/setup-micromamba@add3a49764cedee8ee24e82dfde87f5bc2914462  # v2
+        with:
+          micromamba-version: 2.9.0-0
+          environment-name: blas
+          create-args: openblas-ilp64=0.3.34 libopenblas-ilp64=0.3.34
+          condarc: |
+            channels: [conda-forge]
+
+      - name: link name for conda's OpenBLAS
+        if: matrix.conda
+        run: |
+          # The runtime package may ship only the versioned library.
+          [ -e "$CONDA_PREFIX/lib/libopenblas64_.so" ] \
+              || ln -s libopenblas64_.so.0 "$CONDA_PREFIX/lib/libopenblas64_.so"
+          ls -l "$CONDA_PREFIX"/lib/libopenblas*
+
+      - name: point the system compiler at conda's OpenBLAS
+        if: matrix.conda == 'global'
+        run: |
+          echo "CPATH=$CONDA_PREFIX/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L$CONDA_PREFIX/lib -Wl,-rpath,$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+
+      - name: lane ${{ matrix.lane }}
+        run: >
+          python3 -I .github/ballistic/ci.py lane '${{ matrix.lane }}'
+          --work "$RUNNER_TEMP/bci" --out "$RUNNER_TEMP/out" --expect "$BCI_EXPECT"
+          --blaspp-url "$BCI_BLASPP_URL" --blaspp-sha "$BCI_BLASPP_SHA"
+          --lapackpp-url "$BCI_LAPACKPP_URL" --lapackpp-sha "$BCI_LAPACKPP_SHA"
+
+      - name: upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.lane }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30
+
+  macos:
+    name: lane ${{ matrix.lane }}
+    needs: resolve
+    runs-on: macos-15
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [7a, 7b, 7c]
+    env:
+      BCI_BLASPP_URL: ${{ needs.resolve.outputs.blaspp_url }}
+      BCI_BLASPP_SHA: ${{ needs.resolve.outputs.blaspp_sha }}
+      BCI_LAPACKPP_URL: ${{ needs.resolve.outputs.lapackpp_url }}
+      BCI_LAPACKPP_SHA: ${{ needs.resolve.outputs.lapackpp_sha }}
+      BCI_EXPECT: ${{ needs.resolve.outputs.expect }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: lane ${{ matrix.lane }}
+        run: >
+          python3 -I .github/ballistic/ci.py lane '${{ matrix.lane }}'
+          --work "$RUNNER_TEMP/bci" --out "$RUNNER_TEMP/out" --expect "$BCI_EXPECT"
+          --blaspp-url "$BCI_BLASPP_URL" --blaspp-sha "$BCI_BLASPP_SHA"
+          --lapackpp-url "$BCI_LAPACKPP_URL" --lapackpp-sha "$BCI_LAPACKPP_SHA"
+
+      - name: upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.lane }}
+          path: ${{ runner.temp }}/out
+          retention-days: 30
+
+  windows:
+    name: lane ${{ matrix.lane }}
+    needs: resolve
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [8a, 8b]
+    env:
+      BCI_BLASPP_URL: ${{ needs.resolve.outputs.blaspp_url }}
+      BCI_BLASPP_SHA: ${{ needs.resolve.outputs.blaspp_sha }}
+      BCI_LAPACKPP_URL: ${{ needs.resolve.outputs.lapackpp_url }}
+      BCI_LAPACKPP_SHA: ${{ needs.resolve.outputs.lapackpp_sha }}
+      BCI_EXPECT: ${{ needs.resolve.outputs.expect }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: initialize MSVC
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756  # v1
+        with:
+          arch: x64
+
+      - name: cache oneMKL and Intel OpenMP (NuGet)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\nuget
+          key: bci-nuget-intelmkl-2026.1.0.226-intelopenmp-2026.1.0.239-r1
+
+      # Intel's NuGet packages, pinned by version and SHA256 (the same pins as
+      # RandLAPACK's Windows setup). The devel package has the ILP64 import
+      # libraries and headers; the redist package the DLLs.
+      - name: oneMKL ILP64 and Intel OpenMP, plus a copy under a path with a space
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'nuget'
+          $mkl = Join-Path $root 'onemkl'
+          $iomp = Join-Path $root 'iomp'
+          $packages = @(
+            @{ Id = 'intelmkl.devel.win-x64'; Version = '2026.1.0.226'
+               Sha256 = 'd4456ce3c767b235d9c212c093a40cdf073589102dbf70bc0fd2d59140be30d2'
+               Moves = @(@{ From = 'build\native\win-x64'; To = "$mkl\lib" }, @{ From = 'build\native\include'; To = "$mkl\include" }) },
+            @{ Id = 'intelmkl.redist.win-x64'; Version = '2026.1.0.226'
+               Sha256 = 'ac2d4a14a70b021557170f53460b57038af5ab1977e82a05aca8e4a5af7bcb61'
+               Moves = @(@{ From = 'runtimes\win-x64\native'; To = "$mkl\bin" }) },
+            @{ Id = 'intelopenmp.devel.win'; Version = '2026.1.0.239'
+               Sha256 = '3fa832b31d9e6cb0160aabd17c9615df77d9c21aaf79b7dd643f4c0dea376949'
+               Moves = @(@{ From = 'build\native\win-x64'; To = "$iomp\lib" }) },
+            @{ Id = 'intelopenmp.redist.win'; Version = '2026.1.0.239'
+               Sha256 = '2a0f9fcdb51d8ac9fa535b67f013fd9341338355679261a39b946ef5e3f399fe'
+               Moves = @(@{ From = 'runtimes\win-x64\native'; To = "$iomp\bin" }) })
+          $ready = (Test-Path "$mkl\lib\mkl_intel_ilp64_dll.lib") -and (Test-Path "$mkl\bin") -and
+                   (Test-Path "$iomp\lib\libiomp5md.lib") -and (Test-Path "$iomp\bin\libiomp5md.dll")
+          if (-not $ready) {
+            if (Test-Path $root) { Remove-Item -Recurse -Force $root }
+            New-Item -ItemType Directory -Force $root | Out-Null
+            foreach ($p in $packages) {
+              $archive = Join-Path $root "$($p.Id).zip"
+              curl.exe -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o $archive `
+                "https://api.nuget.org/v3-flatcontainer/$($p.Id)/$($p.Version)/$($p.Id).$($p.Version).nupkg"
+              if ($LASTEXITCODE -ne 0) { throw "download of $($p.Id) failed" }
+              $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+              if ($actual -ne $p.Sha256) { throw "$($p.Id) $($p.Version): SHA256 $actual, expected $($p.Sha256)" }
+              $x = Join-Path $root "x-$($p.Id)"
+              Expand-Archive -Path $archive -DestinationPath $x -Force
+              foreach ($m in $p.Moves) {
+                New-Item -ItemType Directory -Force (Split-Path $m.To -Parent) | Out-Null
+                Move-Item (Join-Path $x $m.From) $m.To
+              }
+              Remove-Item -Recurse -Force $x, $archive
+            }
+          }
+          # The import libraries BLAS_LIBRARIES / LAPACK_LIBRARIES name, copied
+          # under a directory whose name has a space (Intel's default install
+          # location has one too). They only name their DLLs, which load from PATH.
+          $spacedName = 'intel mkl'
+          $spaced = Join-Path $env:RUNNER_TEMP $spacedName
+          New-Item -ItemType Directory -Force "$spaced\lib", "$spaced\iomp" | Out-Null
+          foreach ($lib in 'mkl_intel_ilp64_dll.lib', 'mkl_intel_thread_dll.lib', 'mkl_core_dll.lib') {
+            Copy-Item -LiteralPath "$mkl\lib\$lib" -Destination "$spaced\lib\$lib"
+          }
+          Copy-Item -LiteralPath "$iomp\lib\libiomp5md.lib" -Destination "$spaced\iomp\libiomp5md.lib"
+          Add-Content $env:GITHUB_ENV "BCI_MKL_PLAIN=$mkl"
+          Add-Content $env:GITHUB_ENV "BCI_IOMP_PLAIN=$iomp\lib"
+          Add-Content $env:GITHUB_ENV "BCI_MKL_SPACED=$spaced"
+          Add-Content $env:GITHUB_ENV "BCI_IOMP_SPACED=$spaced\iomp"
+          Add-Content $env:GITHUB_ENV "BCI_SPACED_NAME=$spacedName"
+          # mkl.h on the compiler's INCLUDE path, as in an oneAPI shell.
+          Add-Content $env:GITHUB_ENV "INCLUDE=$mkl\include;$env:INCLUDE"
+          Add-Content $env:GITHUB_PATH "$mkl\bin"
+          Add-Content $env:GITHUB_PATH "$iomp\bin"
+
+      - name: lane ${{ matrix.lane }}
+        run: |
+          python -I .github/ballistic/ci.py lane '${{ matrix.lane }}' `
+            --work "$env:RUNNER_TEMP\bci" --out "$env:RUNNER_TEMP\out" --expect "$env:BCI_EXPECT" `
+            --blaspp-url "$env:BCI_BLASPP_URL" --blaspp-sha "$env:BCI_BLASPP_SHA" `
+            --lapackpp-url "$env:BCI_LAPACKPP_URL" --lapackpp-sha "$env:BCI_LAPACKPP_SHA"
+          exit $LASTEXITCODE
+
+      - name: upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.lane }}
+          path: ${{ runner.temp }}\out
+          retention-days: 30
+
+  check:
+    # The merge gate's required status is "check expectations". Only a
+    # pull_request run may report under that name: a push or dispatch run on
+    # the same commit has no base comparison and may test other commits of the
+    # other fork, so it reports as "check expectations (<event>)".
+    name: ${{ github.event_name == 'pull_request' && 'check expectations' || format('check expectations ({0})', github.event_name) }}
+    needs: [resolve, linux, macos, windows]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: commits were resolved
+        if: needs.resolve.result != 'success'
+        run: |
+          echo "::error::the resolve job did not succeed"
+          exit 1
+
+      - name: download lane results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: results-*
+          path: ${{ runner.temp }}/results
+
+      - name: checker self-test
+        run: python3 -I .github/ballistic/ci.py selftest
+
+      - name: check every lane against its expectations
+        run: >
+          python3 -I .github/ballistic/ci.py check
+          --results "$RUNNER_TEMP/results" --summary "$RUNNER_TEMP/summary.json"
+          --work "$RUNNER_TEMP/bci" --expect '${{ needs.resolve.outputs.expect }}'
+          --blaspp-url '${{ needs.resolve.outputs.blaspp_url }}'
+          --blaspp-sha '${{ needs.resolve.outputs.blaspp_sha }}'
+          --lapackpp-url '${{ needs.resolve.outputs.lapackpp_url }}'
+          --lapackpp-sha '${{ needs.resolve.outputs.lapackpp_sha }}'
+          --base-sha '${{ needs.resolve.outputs.base_sha }}'
+          --rules-label '${{ needs.resolve.outputs.rules_label }}'
+
+      - name: upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ballistic-summary
+          path: ${{ runner.temp }}/summary.json
+          retention-days: 90
