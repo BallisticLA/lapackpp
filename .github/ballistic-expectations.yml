@@ -42,9 +42,9 @@
 6b.lapackpp.zero-dims: pass
 
 # L4 (upstream PR to be opened): a re-configure drops LAPACK++ defines.
-6.lapackpp.option: xfail:L4
-6.lapackpp.failed-then-fixed: xfail:L4
-6.lapackpp.findlapack-blaspp-swap: xfail:L4
+6.lapackpp.option: pass
+6.lapackpp.failed-then-fixed: pass
+6.lapackpp.findlapack-blaspp-swap: pass
 
 # L2F1, fork-only fixup of L2: LAPACKConfig probes with a LAPACK suffix
 # different from BLAS++'s.
