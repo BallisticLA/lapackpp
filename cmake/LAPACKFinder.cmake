@@ -28,9 +28,11 @@ elseif (NOT ("${lapack_cached}" STREQUAL "${lapack}"))
     set( LAPACK_LIBRARIES "" CACHE INTERNAL "" )
 elseif (LAPACK_FOUND
         AND DEFINED lapack_defs_cached
+        AND "${lapack_symbol_suffix}" STREQUAL "${lapack_symbol_suffix_cached}"
         AND "${blaspp_libraries}" STREQUAL "${lapack_blaspp_libraries_cached}"
         AND "${blaspp_defines}"   STREQUAL "${lapack_blaspp_defines_cached}")
-    # The previous search succeeded with the same BLAS++; reuse it.
+    # The previous search succeeded with the same suffix and BLAS++;
+    # reuse it.
     # (lapack_defs_cached is undefined if an older version searched.)
     message( DEBUG "LAPACK search already done for
     lapack           = ${lapack}
@@ -169,6 +171,7 @@ endforeach()
 
 # Update to found LAPACK library.
 set( lapack_libraries_cached ${LAPACK_LIBRARIES} CACHE INTERNAL "" )
+set( lapack_symbol_suffix_cached    "${lapack_symbol_suffix}" CACHE INTERNAL "" )
 set( lapack_blaspp_libraries_cached "${blaspp_libraries}" CACHE INTERNAL "" )
 set( lapack_blaspp_defines_cached   "${blaspp_defines}"   CACHE INTERNAL "" )
 set( lapack_defs_cached             "${lapackpp_defs_}"   CACHE INTERNAL "" )
