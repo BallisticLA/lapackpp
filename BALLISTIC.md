@@ -32,6 +32,7 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 | L3 | [#93](https://github.com/icl-utk-edu/lapackpp/pull/93): `gemqrt` allocates at least one workspace entry (empty-vector UB at n = 0 / m = 0; root cause of BallisticLA/RandLAPACK#91, see BallisticLA/RandLAPACK#202); tester sizes V by side and allows zero dims | `72f94626dc799a8f64610727e462dbac2ed88133` | `a47ade3fa1af372f9d7d763822144e8b45e96d00` | carry/l3 | carried |
 | L4 | [#94](https://github.com/icl-utk-edu/lapackpp/pull/94), the LAPACK++ counterpart of icl-utk-edu/blaspp#133: re-configure keeps `LAPACK_VERSION`, `LAPACK_HAVE_XBLAS`, `LAPACK_HAVE_LAPACKE`; module caches keyed on `blaspp_libraries`/`blaspp_defines`; no cached failures | `e6fb7f2f1379a9252aa622f478ce64c35fdca87f` | `0c70008f9f8a7db121497cee520caacb75763865` | carry/l4 | carried |
 | L2F1 | none (fork-only `fixup(lapackpp#91)`): with a LAPACK suffix different from BLAS++'s, LAPACK++'s version and other probes must use the LAPACK suffix | `ac13027ab21f02b3a3e865f5d810ec7dea7fbbc0` | `5de1a87aa0e297e0de2f2bba383d893f3ca1eed5` | carry/l2f1 | carried |
+| L5 | [#95](https://github.com/icl-utk-edu/lapackpp/pull/95): device `unmqr` / `ormqr` and their work-size queries (CUDA, ROCm, oneMKL, stub; tester `dev-unmqr`), needed by RandLAPACK's GPU QR | `3de78216bc9f37a2cae418506e94e05721d9f815` | `419250fceba58a39b2f14cd825ac722dc4d61bb6` | carry/l5 | carried |
 
 States: `pending` (not in `main`), `carried` (merged into `main` through its
 fork PR), `upstream` (merged upstream; still carried until a release has it),
