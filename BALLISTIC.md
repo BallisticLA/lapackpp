@@ -34,6 +34,7 @@ The tree hash identifies a patch's content; a reworded commit keeps it.
 | L2F1 | none (fork-only `fixup(lapackpp#91)`): with a LAPACK suffix different from BLAS++'s, LAPACK++'s version and other probes must use the LAPACK suffix | `ac13027ab21f02b3a3e865f5d810ec7dea7fbbc0` | `5de1a87aa0e297e0de2f2bba383d893f3ca1eed5` | carry/l2f1 | carried |
 | L5 | [#95](https://github.com/icl-utk-edu/lapackpp/pull/95): device `unmqr` / `ormqr` and their work-size queries (CUDA, ROCm, oneMKL, stub; tester `dev-unmqr`), needed by RandLAPACK's GPU QR | `3de78216bc9f37a2cae418506e94e05721d9f815` | `419250fceba58a39b2f14cd825ac722dc4d61bb6` | carry/l5 | carried |
 | L6 | [#96](https://github.com/icl-utk-edu/lapackpp/pull/96): declare and instantiate device `potrf_work_size_bytes` in every backend, so callers can size the queue workspace before `potrf` | `aa5e191640eea68d4da4890bc41a5a41dc5e9b71` | `20a245cfbe9491c4cc29e72a91b2ea31c15eed0e` | carry/l6 | carried |
+| L7 | [#97](https://github.com/icl-utk-edu/lapackpp/pull/97): `lapack::Queue::~Queue` catches exceptions, as `blas::Queue::~Queue` does, so a failed `set_device` cannot terminate the process | `3ed6f2f389c66b1fdbfe9cd672a2cfa5f017709b` | `e3fe69923cff22a1cb98f5963690f96c9a4c5d51` | carry/l7 | carried |
 
 States: `pending` (not in `main`), `carried` (merged into `main` through its
 fork PR), `upstream` (merged upstream; still carried until a release has it),
